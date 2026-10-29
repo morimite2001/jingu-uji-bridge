@@ -1,0 +1,2113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>伊勢神宮 宇治橋 3D建築構造・高精細ディテールビューア（全47枚精査・橋梁本体特化版）</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #e6ebf0;
+      font-family: 'Noto Serif JP', serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+    .font-sans-ui {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .annotation-marker {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      pointer-events: auto;
+      cursor: pointer;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 20;
+    }
+    .annotation-marker:hover {
+      transform: translate(-50%, -50%) scale(1.12);
+      z-index: 30;
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.84);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="text-slate-100">
+
+  <!-- 3Dキャンバスコンテナ -->
+  <div id="canvas-container" class="relative w-full h-full"></div>
+
+  <!-- 3D構造解説ピンレイヤー -->
+  <div id="labels-container" class="fixed inset-0 pointer-events-none overflow-hidden z-20"></div>
+
+  <!-- 左上：タイトル＆建築構造ヘッダー -->
+  <div class="fixed top-4 left-4 right-4 md:right-auto z-30 pointer-events-none flex flex-col gap-2 max-w-lg">
+    <div class="glass-panel rounded-2xl p-4 shadow-2xl pointer-events-auto border-l-4 border-amber-500">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <span class="text-[11px] tracking-widest text-amber-300 font-semibold block mb-0.5">現地写真47枚精査・橋梁本体構造モデル（樹木・不要物撤去済）</span>
+          <h1 class="text-lg md:text-xl font-bold tracking-wider text-white">伊勢神宮 宇治橋 3D建築構造ビューア</h1>
+        </div>
+        <button id="toggle-ui-btn" class="md:hidden px-3 py-1.5 rounded-lg bg-slate-800/90 text-xs border border-slate-600 text-slate-200 font-sans-ui">
+          パネル開閉
+        </button>
+      </div>
+      <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">
+        全47枚の写真から橋梁本体の木組み・錺金具・石積みを精密再現。視界を遮る樹木や不要な周辺物を撤去し、高欄のくり形束柱、4本角釘の継手金具、擬宝珠の「御裳濯川 御橋」陰刻、中央縁木、耳桁上の張り出し敷板、X字筋交い橋脚群、Aフレーム木除け杭まで自在に俯瞰・接写できます。
+      </p>
+    </div>
+  </div>
+
+  <!-- 右側：建築部位カメラ＆質感コントロールパネル -->
+  <div id="control-panel" class="fixed bottom-4 left-4 right-4 md:top-4 md:bottom-auto md:left-auto md:right-4 md:w-96 z-30 flex flex-col gap-3 transition-all duration-300">
+    <div class="glass-panel rounded-2xl p-4 shadow-2xl flex flex-col gap-3 max-h-[85vh] overflow-y-auto">
+
+      <!-- 木肌・路面コンディション切り替え -->
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <h2 class="text-xs font-bold tracking-wider text-amber-400 uppercase">質感・河川コンディション</h2>
+          <span class="text-[10px] text-slate-300 font-sans-ui">PBRバンプ質感適用</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 font-sans-ui text-xs">
+          <button id="btn-mode-wet" class="px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold transition shadow flex items-center justify-center gap-1.5">
+            <span>💧 湿潤木肌・増水河川（写真準拠）</span>
+          </button>
+          <button id="btn-mode-dry" class="px-3 py-2 rounded-xl bg-slate-800/85 hover:bg-slate-700 text-slate-200 border border-slate-600/60 transition flex items-center justify-center gap-1.5">
+            <span>☀️ 乾燥檜肌・清流モード</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 47枚の写真に基づく建築部位プリセット -->
+      <div class="border-t border-slate-700/70 pt-2.5">
+        <div class="flex items-center justify-between mb-1.5">
+          <h2 class="text-xs font-bold tracking-wider text-amber-400 uppercase">建築・土木ディテール視点（写真47枚準拠）</h2>
+          <span class="text-[10px] text-slate-400 font-sans-ui">クリックで移動</span>
+        </div>
+        <div class="flex flex-col gap-1.5 font-sans-ui text-xs">
+          <button data-cam="overview" class="cam-btn px-3 py-1.5 rounded-xl bg-amber-600/90 hover:bg-amber-500 text-white font-medium transition shadow text-left flex items-center justify-between">
+            <span>🏯 1. 宇治橋・全構造クリア俯瞰（樹木なし）</span>
+            <span class="text-[10px] opacity-85">全体構造</span>
+          </button>
+          <button data-cam="substructure" class="cam-btn px-3 py-1.5 rounded-xl bg-slate-800/85 hover:bg-slate-700 text-slate-200 border border-slate-600/60 transition text-left flex items-center justify-between">
+            <span>🪵 2. 下部工：X字筋交い・貫・切妻小屋根</span>
+            <span class="text-[10px] opacity-75">IMG_8745-50</span>
+          </button>
+          <button data-cam="deck_center" class="cam-btn px-3 py-1.5 rounded-xl bg-slate-800/85 hover:bg-slate-700 text-slate-200 border border-slate-600/60 transition text-left flex items-center justify-between">
+            <span>🛤️ 3. 橋面：中央縁木・千鳥切石・張り出し敷板</span>
+            <span class="text-[10px] opacity-75">IMG_8752-66</span>
+          </button>
+          <button data-cam="railing_joint" class="cam-btn px-3 py-1.5 rounded-xl bg-slate-800/85 hover:bg-slate-700 text-slate-200 border border-slate-600/60 transition text-left flex items-center justify-between">
+            <span>🔩 4. 高欄詳細：くり形束柱・4本角釘継手・唄金具</span>
+            <span class="text-[10px] opacity-75">IMG_8757-58</span>
+          </button>
+          <button data-cam="giboshi_closeup" class="cam-btn px-3 py-1.5 rounded-xl bg-slate-800/85 hover:bg-slate-700 text-slate-200 border border-slate-600/60 transition text-left flex items-center justify-between">
+            <span>🏺 5. 擬宝珠接写：「御裳濯川 御橋」銘と猪目金具</span>
+            <span class="text-[10px] opacity-75">IMG_8775-76</span>
+          </button>
+          <button data-cam="kiyokegui" class="cam-btn px-3 py-1.5 rounded-xl bg-slate-800/85 hover:bg-slate-700 text-slate-200 border border-slate-600/60 transition text-left flex items-center justify-between">
+            <span>🌊 6. 上流側：Aフレーム木除け杭と下流洗い堰</span>
+            <span class="text-[10px] opacity-75">IMG_8761-68</span>
+          </button>
+          <button data-cam="abutment" class="cam-btn px-3 py-1.5 rounded-xl bg-slate-800/85 hover:bg-slate-700 text-slate-200 border border-slate-600/60 transition text-left flex items-center justify-between">
+            <span>🧱 7. 橋詰：2段亀甲積み橋台・袖高欄・神明鳥居</span>
+            <span class="text-[10px] opacity-75">IMG_8736-43</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 表示オプション -->
+      <div class="border-t border-slate-700/70 pt-2 flex items-center justify-between font-sans-ui text-xs">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="toggle-labels" checked class="w-4 h-4 accent-amber-500 rounded cursor-pointer">
+          <span class="text-slate-200 font-medium">構造解説ピンを表示</span>
+        </label>
+        <button id="btn-walkthrough" class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 font-medium transition">
+          🚶 橋面ウォークスルー再生
+        </button>
+      </div>
+
+      <!-- 選択中の建築部位解説ボックス -->
+      <div class="border-t border-slate-700/70 pt-2">
+        <div class="bg-slate-900/95 rounded-xl p-3 border border-amber-500/40">
+          <div class="flex items-center justify-between mb-1">
+            <span id="detail-title" class="text-xs font-bold text-amber-300">① 宇治橋・全構造クリア俯瞰</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-sans-ui">構造解説</span>
+          </div>
+          <p id="detail-desc" class="text-[11px] text-slate-300 leading-relaxed">
+            橋梁周辺の樹木や不要な設置物をすべて排除した全体俯瞰です。全長約101.8m（モデル長96m）の緩やかな木造反り橋、16基の擬宝珠、両端の神明鳥居とL字型の袖高欄、11列の橋脚群とX字筋交い、上流の木除け杭まで一望できます。
+          </p>
+        </div>
+      </div>
+
+      <!-- 操作ガイド -->
+      <div class="text-[10px] text-slate-400 font-sans-ui flex justify-between border-t border-slate-800 pt-2">
+        <span>左ドラッグ: 360°回転</span>
+        <span>ホイール: 接写ズーム</span>
+        <span>右ドラッグ: 平行移動</span>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ==========================================
+    // 1. シーン・カメラ・高精細レンダラー初期化
+    // ==========================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xe6ecf2);
+    scene.fog = new THREE.FogExp2(0xe6ecf2, 0.0018);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 600);
+    // 初期視点：樹木に邪魔されず橋全体が美しく見渡せる俯瞰アングル
+    camera.position.set(-38, 20, 52);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.45;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI * 0.54; // 橋桁の裏側・橋脚を見上げるアングルも許容
+    controls.minDistance = 0.6; // 擬宝珠や金具の超接写が可能
+    controls.maxDistance = 220;
+    controls.target.set(0, 4.5, 0);
+
+    // ==========================================
+    // 2. 高解像度プロシージャルPBRテクスチャ生成（全47枚の部材質感を精細再現）
+    // ==========================================
+
+    // (A) 檜（ヒノキ）構造材テクスチャ＆バンプマップ（IMG_8757, 8758, 8769の木目・微細な干割れ・経年風化）
+    function createHinokiTimberTextures() {
+      const cColor = document.createElement('canvas');
+      const cBump = document.createElement('canvas');
+      cColor.width = cBump.width = 1024;
+      cColor.height = cBump.height = 1024;
+      const ctxC = cColor.getContext('2d');
+      const ctxB = cBump.getContext('2d');
+
+      // ベース木肌色
+      ctxC.fillStyle = '#7e5f47';
+      ctxC.fillRect(0, 0, 1024, 1024);
+      ctxB.fillStyle = '#808080';
+      ctxB.fillRect(0, 0, 1024, 1024);
+
+      // 緻密な木目繊維と年輪の縦縞
+      for (let i = 0; i < 900; i++) {
+        const x = Math.random() * 1024;
+        const w = 0.8 + Math.random() * 3.5;
+        const tone = Math.random();
+        if (tone < 0.45) {
+          ctxC.fillStyle = '#5c422e';
+          ctxB.fillStyle = '#606060';
+        } else if (tone < 0.82) {
+          ctxC.fillStyle = '#997355';
+          ctxB.fillStyle = '#989898';
+        } else {
+          ctxC.fillStyle = '#636852'; // わずかな地衣類・古色
+          ctxB.fillStyle = '#757575';
+        }
+        ctxC.globalAlpha = 0.12 + Math.random() * 0.18;
+        ctxC.fillRect(x, 0, w, 1024);
+        ctxB.globalAlpha = 0.20;
+        ctxB.fillRect(x, 0, w, 1024);
+      }
+
+      // 木材の微細な縦干割れ（IMG_8757の束柱・架木に見られるリアルな繊維割れ目）
+      ctxC.globalAlpha = 0.35;
+      ctxB.globalAlpha = 0.55;
+      ctxC.fillStyle = '#2d1e14';
+      ctxB.fillStyle = '#202020';
+      for (let i = 0; i < 45; i++) {
+        const cx = Math.random() * 1024;
+        const cy = Math.random() * 800;
+        const clen = 60 + Math.random() * 180;
+        ctxC.fillRect(cx, cy, 1.2, clen);
+        ctxB.fillRect(cx, cy, 1.8, clen);
+      }
+
+      const colorTex = new THREE.CanvasTexture(cColor);
+      const bumpTex = new THREE.CanvasTexture(cBump);
+      colorTex.wrapS = colorTex.wrapT = THREE.RepeatWrapping;
+      bumpTex.wrapS = bumpTex.wrapT = THREE.RepeatWrapping;
+      colorTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return { colorTex, bumpTex };
+    }
+
+    // (B) 敷板（床板）専用テクスチャ：生き節（ふし）と年輪模様・外端の2列釘穴（IMG_8759, 8764, 8766, 8768）
+    function createDeckPlankTextures() {
+      const canvas = document.createElement('canvas');
+      const bumpCanvas = document.createElement('canvas');
+      canvas.width = bumpCanvas.width = 1024;
+      canvas.height = bumpCanvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      const ctxB = bumpCanvas.getContext('2d');
+
+      ctx.fillStyle = '#8c694e';
+      ctx.fillRect(0, 0, 1024, 256);
+      ctxB.fillStyle = '#808080';
+      ctxB.fillRect(0, 0, 1024, 256);
+
+      // 板の長手方向（横方向）の木目
+      for (let i = 0; i < 420; i++) {
+        const y = Math.random() * 256;
+        const h = 1 + Math.random() * 3.5;
+        ctx.fillStyle = i % 2 === 0 ? '#6e4f37' : '#a88264';
+        ctx.globalAlpha = 0.14 + Math.random() * 0.15;
+        ctx.fillRect(0, y, 1024, h);
+
+        ctxB.fillStyle = i % 2 === 0 ? '#686868' : '#969696';
+        ctxB.globalAlpha = 0.22;
+        ctxB.fillRect(0, y, 1024, h);
+      }
+
+      // 檜の「節（ふし）」（IMG_8759, 8764, 8766の床板に点在する楕円形の節と周囲のうねり）
+      for (let k = 0; k < 14; k++) {
+        const kx = 60 + Math.random() * 900;
+        const ky = 30 + Math.random() * 196;
+        const rx = 10 + Math.random() * 16;
+        const ry = 5 + Math.random() * 8;
+
+        const grad = ctx.createRadialGradient(kx, ky, 1, kx, ky, rx * 1.6);
+        grad.addColorStop(0, '#3b2618');
+        grad.addColorStop(0.45, '#593b26');
+        grad.addColorStop(1, 'rgba(140, 105, 78, 0)');
+        ctx.globalAlpha = 0.75;
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.ellipse(kx, ky, rx * 1.6, ry * 1.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctxB.globalAlpha = 0.5;
+        ctxB.fillStyle = '#404040';
+        ctxB.beginPath();
+        ctxB.ellipse(kx, ky, rx, ry, 0, 0, Math.PI * 2);
+        ctxB.fill();
+      }
+
+      const colorTex = new THREE.CanvasTexture(canvas);
+      const bumpTex = new THREE.CanvasTexture(bumpCanvas);
+      colorTex.wrapS = colorTex.wrapT = THREE.RepeatWrapping;
+      bumpTex.wrapS = bumpTex.wrapT = THREE.RepeatWrapping;
+      colorTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return { colorTex, bumpTex };
+    }
+
+    // (C) 擬宝珠（ぎぼし）専用グラデーション＆「御裳濯川 御橋」陰刻テクスチャ（IMG_8758, 8775, 8776）
+    function createGiboshiBronzeTextures() {
+      const canvas = document.createElement('canvas');
+      const bumpCanvas = document.createElement('canvas');
+      canvas.width = bumpCanvas.width = 1024;
+      canvas.height = bumpCanvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      const ctxB = bumpCanvas.getContext('2d');
+
+      // 上部（宝珠）の黒緑青色から、胴部中段〜下段の参拝者に撫でられた赤銅（ブロンズ）色、最下部裾の緑青への縦グラデーション（IMG_8775, 8776）
+      const grad = ctx.createLinearGradient(0, 0, 0, 512);
+      grad.addColorStop(0.0, '#22302a');  // 宝珠先端〜上部（深い黒緑青）
+      grad.addColorStop(0.35, '#354a40'); // 宝珠くびれ〜上段リング（緑青）
+      grad.addColorStop(0.55, '#6e5846'); // 銘文がある胴部上段（緑青混じりの赤銅）
+      grad.addColorStop(0.82, '#8c6244'); // 参拝者の手で磨かれた胴部下段（赤銅ブロンズ色：IMG_8775）
+      grad.addColorStop(0.95, '#3b6e57'); // 台座裾の緑青（IMG_8775, 8776）
+      grad.addColorStop(1.0, '#2f5c47');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 1024, 512);
+
+      ctxB.fillStyle = '#808080';
+      ctxB.fillRect(0, 0, 1024, 512);
+
+      // 鋳肌（鋳物特有の微細な斑点と水滴跡）
+      for (let i = 0; i < 4500; i++) {
+        const x = Math.random() * 1024;
+        const y = Math.random() * 512;
+        const r = 0.8 + Math.random() * 2.2;
+        ctx.fillStyle = Math.random() > 0.5 ? '#466354' : '#594132';
+        ctx.globalAlpha = 0.14;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctxB.fillStyle = Math.random() > 0.5 ? '#909090' : '#707070';
+        ctxB.globalAlpha = 0.25;
+        ctxB.fillRect(x, y, 2, 2);
+      }
+
+      // IMG_8775の「御裳濯川」「御橋」の縦書き陰刻銘文を胴部上段に刻印
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = '#263830';
+      ctx.font = '500 22px "Noto Serif JP", serif';
+      ctx.textAlign = 'center';
+
+      ctxB.globalAlpha = 0.9;
+      ctxB.fillStyle = '#303030';
+      ctxB.font = '500 22px "Noto Serif JP", serif';
+      ctxB.textAlign = 'center';
+
+      const col1 = ['御', '裳', '濯', '川'];
+      const col2 = ['御', '橋'];
+      [256, 768].forEach(baseX => {
+        col1.forEach((ch, idx) => {
+          ctx.fillText(ch, baseX + 18, 255 + idx * 24);
+          ctxB.fillText(ch, baseX + 18, 255 + idx * 24);
+        });
+        col2.forEach((ch, idx) => {
+          ctx.fillText(ch, baseX - 18, 262 + idx * 26);
+          ctxB.fillText(ch, baseX - 18, 262 + idx * 26);
+        });
+      });
+
+      const colorTex = new THREE.CanvasTexture(canvas);
+      const bumpTex = new THREE.CanvasTexture(bumpCanvas);
+      colorTex.wrapS = bumpTex.wrapS = THREE.RepeatWrapping;
+      return { colorTex, bumpTex };
+    }
+
+    // (D) 橋詰の「千鳥目地（互い違い）御影石切石舗装」テクスチャ＆バンプ（IMG_8752, 8753, 8754, 8778, 8779）
+    function createStaggeredGraniteTextures() {
+      const canvas = document.createElement('canvas');
+      const bump = document.createElement('canvas');
+      canvas.width = bump.width = 1024;
+      canvas.height = bump.height = 1024;
+      const ctx = canvas.getContext('2d');
+      const ctxB = bump.getContext('2d');
+
+      ctx.fillStyle = '#9ea6a4';
+      ctx.fillRect(0, 0, 1024, 1024);
+      ctxB.fillStyle = '#888888';
+      ctxB.fillRect(0, 0, 1024, 1024);
+
+      const rows = 8;
+      const cols = 4;
+      const rowH = 1024 / rows;
+      const colW = 1024 / cols;
+
+      for (let r = 0; r < rows; r++) {
+        const offsetX = (r % 2) * (colW * 0.5);
+        for (let c = -1; c <= cols; c++) {
+          const x = c * colW + offsetX;
+          const y = r * rowH;
+          const tone = 152 + ((r * 7 + c * 13) % 18);
+          ctx.fillStyle = `rgb(${tone}, ${tone + 4}, ${tone + 3})`;
+          ctx.fillRect(x + 3, y + 3, colW - 6, rowH - 6);
+
+          // 御影石の細かな粒子感
+          for (let p = 0; p < 180; p++) {
+            ctx.fillStyle = p % 2 === 0 ? '#78807e' : '#c2cac8';
+            ctx.globalAlpha = 0.25;
+            ctx.fillRect(x + 4 + Math.random() * (colW - 8), y + 4 + Math.random() * (rowH - 8), 2.5, 2.5);
+          }
+          ctx.globalAlpha = 1.0;
+
+          // 目地溝
+          ctx.strokeStyle = '#474d4b';
+          ctx.lineWidth = 5;
+          ctx.strokeRect(x, y, colW, rowH);
+
+          ctxB.strokeStyle = '#252525';
+          ctxB.lineWidth = 6;
+          ctxB.strokeRect(x, y, colW, rowH);
+        }
+      }
+
+      const colorTex = new THREE.CanvasTexture(canvas);
+      const bumpTex = new THREE.CanvasTexture(bump);
+      colorTex.wrapS = colorTex.wrapT = THREE.RepeatWrapping;
+      bumpTex.wrapS = bumpTex.wrapT = THREE.RepeatWrapping;
+      colorTex.repeat.set(2, 3);
+      bumpTex.repeat.set(2, 3);
+      return { colorTex, bumpTex };
+    }
+
+    // (E) 洗い出し舗装＆玉砂利テクスチャ（IMG_8738〜8742, 8777, 8781）
+    function createPebbleTexture(bgHex, count, scaleRepeat) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = bgHex;
+      ctx.fillRect(0, 0, 512, 512);
+
+      const palette = ['#3f3f46', '#52525b', '#71717a', '#a1a1aa', '#d4d4d8', '#f4f4f5'];
+      for (let i = 0; i < count; i++) {
+        ctx.fillStyle = palette[i % palette.length];
+        ctx.globalAlpha = 0.65;
+        ctx.beginPath();
+        ctx.ellipse(
+          Math.random() * 512,
+          Math.random() * 512,
+          1.2 + Math.random() * 2.6,
+          1.0 + Math.random() * 2.2,
+          Math.random() * Math.PI,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(scaleRepeat, scaleRepeat);
+      return tex;
+    }
+
+    // (F) 亀甲積み（多角形石積み）テクスチャ＆バンプ（IMG_8743, 8744の橋台・護岸）
+    function createKikkoMasonryTextures() {
+      const canvas = document.createElement('canvas');
+      const bump = document.createElement('canvas');
+      canvas.width = bump.width = 512;
+      canvas.height = bump.height = 256;
+      const ctx = canvas.getContext('2d');
+      const ctxB = bump.getContext('2d');
+
+      const cols = 10, rows = 5;
+      const cellW = 512 / cols, cellH = 256 / rows;
+      const pts = [];
+      for (let r = -1; r <= rows + 1; r++) {
+        for (let c = -1; c <= cols + 1; c++) {
+          const ox = (r % 2) * (cellW * 0.5);
+          pts.push({
+            x: c * cellW + ox + (Math.random() - 0.5) * cellW * 0.36,
+            y: r * cellH + (Math.random() - 0.5) * cellH * 0.36,
+            base: 108 + ((r * 11 + c * 17) % 34)
+          });
+        }
+      }
+
+      const imgC = ctx.createImageData(512, 256);
+      const imgB = ctxB.createImageData(512, 256);
+      for (let y = 0; y < 256; y++) {
+        for (let x = 0; x < 512; x++) {
+          let d1 = 1e9, d2 = 1e9, id = 0;
+          for (let i = 0; i < pts.length; i++) {
+            const d = Math.hypot(x - pts[i].x, y - pts[i].y);
+            if (d < d1) { d2 = d1; d1 = d; id = i; }
+            else if (d < d2) { d2 = d; }
+          }
+          const idx = (y * 512 + x) * 4;
+          const border = (d2 - d1) < 2.3;
+          const n = (Math.random() - 0.5) * 12;
+          const v = border ? 48 : pts[id].base + n;
+          imgC.data[idx] = v;
+          imgC.data[idx + 1] = v + 4;
+          imgC.data[idx + 2] = v + 2;
+          imgC.data[idx + 3] = 255;
+
+          const bv = border ? 35 : Math.min(245, 130 + (d2 - d1) * 4 + n);
+          imgB.data[idx] = imgB.data[idx + 1] = imgB.data[idx + 2] = bv;
+          imgB.data[idx + 3] = 255;
+        }
+      }
+      ctx.putImageData(imgC, 0, 0);
+      ctxB.putImageData(imgB, 0, 0);
+
+      const colorTex = new THREE.CanvasTexture(canvas);
+      const bumpTex = new THREE.CanvasTexture(bump);
+      colorTex.wrapS = colorTex.wrapT = THREE.RepeatWrapping;
+      bumpTex.wrapS = bumpTex.wrapT = THREE.RepeatWrapping;
+      colorTex.repeat.set(3, 1.2);
+      bumpTex.repeat.set(3, 1.2);
+      return { colorTex, bumpTex };
+    }
+
+    // (G) 「右側通行」木製案内立札テクスチャ（IMG_8752, 8771）
+    function createNoticeBoardTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#463222';
+      ctx.fillRect(0, 0, 256, 512);
+      ctx.strokeStyle = '#291c12';
+      ctx.lineWidth = 14;
+      ctx.strokeRect(7, 7, 242, 498);
+
+      ctx.fillStyle = '#e7ddd3';
+      ctx.font = 'bold 64px "Noto Serif JP", serif';
+      ctx.textAlign = 'center';
+      ['右', '側', '通', '行'].forEach((ch, i) => {
+        ctx.fillText(ch, 128, 120 + i * 105);
+      });
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    const hinoki = createHinokiTimberTextures();
+    const deckTex = createDeckPlankTextures();
+    const giboshiTex = createGiboshiBronzeTextures();
+    const graniteStaggered = createStaggeredGraniteTextures();
+    const washedAggregateTex = createPebbleTexture('#686d73', 9500, 6);
+    const gravelApproachTex = createPebbleTexture('#847f78', 8000, 12);
+    const kikko = createKikkoMasonryTextures();
+    const rightTrafficTex = createNoticeBoardTexture();
+
+    // ==========================================
+    // 3. マテリアル定義（PBRバンプ・金属度・粗さの精密設定）
+    // ==========================================
+    const materials = {
+      // 神明鳥居・親柱の檜材
+      hinokiColumn: new THREE.MeshStandardMaterial({
+        map: hinoki.colorTex,
+        bumpMap: hinoki.bumpTex,
+        bumpScale: 0.018,
+        color: 0x9c7454,
+        roughness: 0.34,
+        metalness: 0.05
+      }),
+      // 高欄（架木・平桁・地覆・束柱・中央縁木）の檜材
+      hinokiRailing: new THREE.MeshStandardMaterial({
+        map: hinoki.colorTex,
+        bumpMap: hinoki.bumpTex,
+        bumpScale: 0.022,
+        color: 0xa67e5e,
+        roughness: 0.36,
+        metalness: 0.05
+      }),
+      // 橋面の敷板（節と年輪のある檜板・雨天時はしっとり反射）
+      hinokiDeck: new THREE.MeshStandardMaterial({
+        map: deckTex.colorTex,
+        bumpMap: deckTex.bumpTex,
+        bumpScale: 0.015,
+        color: 0xb88e6c,
+        roughness: 0.24,
+        metalness: 0.08
+      }),
+      // 下部工（橋脚・冠木・方杖・X字筋交い・貫・木除け杭）の檜材
+      hinokiSubstructure: new THREE.MeshStandardMaterial({
+        map: hinoki.colorTex,
+        bumpMap: hinoki.bumpTex,
+        bumpScale: 0.025,
+        color: 0xa37e60,
+        roughness: 0.44,
+        metalness: 0.04
+      }),
+      // 貫木口・切妻小屋根・木除け杭斜め材の白色保護塗装（IMG_8745〜8750, 8767）
+      whiteProtectiveCoat: new THREE.MeshStandardMaterial({
+        color: 0xf1f5f9,
+        roughness: 0.42,
+        metalness: 0.04
+      }),
+      // 擬宝珠（緑青と参拝者に撫でられた赤銅ブロンズ＋「御裳濯川 御橋」銘：IMG_8758, 8775, 8776）
+      giboshiBronze: new THREE.MeshStandardMaterial({
+        map: giboshiTex.colorTex,
+        bumpMap: giboshiTex.bumpTex,
+        bumpScale: 0.012,
+        roughness: 0.26,
+        metalness: 0.76
+      }),
+      // 擬宝珠裾の真鍮・青銅丸鋲（IMG_8775, 8776）
+      brassRivet: new THREE.MeshStandardMaterial({
+        color: 0xb48a4e,
+        roughness: 0.28,
+        metalness: 0.85
+      }),
+      // 親柱上端の緑青銅板リング・橋脚根元の緑青銅板袴（IMG_8745, 8758, 8765）
+      verdigrisCopper: new THREE.MeshStandardMaterial({
+        color: 0x4c8c74,
+        roughness: 0.36,
+        metalness: 0.62
+      }),
+      // 黒鉄錺金具（猪目金具・架木継手4本角釘プレート・唄金具丸鋲・束柱帯金具：IMG_8757, 8758）
+      blackIronHardware: new THREE.MeshStandardMaterial({
+        color: 0x22252a,
+        roughness: 0.32,
+        metalness: 0.82
+      }),
+      // 親柱側面の赤褐色〜黒鉄の猪目帯金具（IMG_8758, 8765, 8776で赤錆・銅黒色を帯びた鉄帯）
+      inomeBronzeIron: new THREE.MeshStandardMaterial({
+        color: 0x3b2820,
+        roughness: 0.35,
+        metalness: 0.72
+      }),
+      // 橋詰の千鳥目地・御影石切石舗装（IMG_8752, 8753, 8754, 8778）
+      graniteStaggeredPaving: new THREE.MeshStandardMaterial({
+        map: graniteStaggered.colorTex,
+        bumpMap: graniteStaggered.bumpTex,
+        bumpScale: 0.015,
+        color: 0xc2cac8,
+        roughness: 0.28,
+        metalness: 0.06
+      }),
+      // 切石フレーム＆縁石（IMG_8739〜8743）
+      graniteBorderStone: new THREE.MeshStandardMaterial({
+        color: 0xcbd5e1,
+        roughness: 0.30,
+        metalness: 0.05
+      }),
+      // 洗い出し舗装（IMG_8738〜8742, 8777, 8781）
+      washedPaving: new THREE.MeshStandardMaterial({
+        map: washedAggregateTex,
+        bumpMap: washedAggregateTex,
+        bumpScale: 0.016,
+        color: 0x9aa1a8,
+        roughness: 0.36,
+        metalness: 0.05
+      }),
+      // 玉砂利地面（鳥居外側および護岸前広場：IMG_8736, 8746〜8750）
+      gravelGround: new THREE.MeshStandardMaterial({
+        map: gravelApproachTex,
+        bumpMap: gravelApproachTex,
+        bumpScale: 0.025,
+        color: 0xb4afa8,
+        roughness: 0.58,
+        metalness: 0.02
+      }),
+      // 亀甲積み石垣・玉石水制護岸（IMG_8743, 8744, 8761, 8762）
+      kikkoMasonry: new THREE.MeshStandardMaterial({
+        map: kikko.colorTex,
+        bumpMap: kikko.bumpTex,
+        bumpScale: 0.03,
+        color: 0xa3aba6,
+        roughness: 0.42,
+        metalness: 0.04
+      })
+    };
+
+    // ==========================================
+    // 4. ライティング設定（全角度からディテールが鮮明に見える3点＋半球照明）
+    // ==========================================
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+    scene.add(ambientLight);
+
+    const hemiLight = new THREE.HemisphereLight(0xf8fafc, 0x8492a6, 1.55);
+    scene.add(hemiLight);
+
+    const mainDirLight = new THREE.DirectionalLight(0xfffdf9, 1.95);
+    mainDirLight.position.set(38, 65, 42);
+    mainDirLight.castShadow = true;
+    mainDirLight.shadow.mapSize.width = 2048;
+    mainDirLight.shadow.mapSize.height = 2048;
+    mainDirLight.shadow.camera.near = 5;
+    mainDirLight.shadow.camera.far = 190;
+    const dShadow = 65;
+    mainDirLight.shadow.camera.left = -dShadow;
+    mainDirLight.shadow.camera.right = dShadow;
+    mainDirLight.shadow.camera.top = dShadow;
+    mainDirLight.shadow.camera.bottom = -dShadow;
+    mainDirLight.shadow.bias = -0.0004;
+    scene.add(mainDirLight);
+
+    // 反対側（北側・下流側および橋脚裏）を明るく照らす補助ディレクショナルライト
+    const subDirLight = new THREE.DirectionalLight(0xe2e8f0, 1.15);
+    subDirLight.position.set(-45, 35, -38);
+    scene.add(subDirLight);
+
+    // ==========================================
+    // 5. 宇治橋の正確な建築プロポーション定義
+    // ==========================================
+    // 西詰（外側・大広場側：IMG_8771〜8782）= -X, 東詰（内宮側：IMG_8736〜8755）= +X
+    // 上流側（木除け杭側：IMG_8767〜8768）= +Z, 下流側（洗い堰・玉石突堤側：IMG_8761〜8762）= -Z
+    const BRIDGE_LEN = 92.0;
+    const HALF_LEN = BRIDGE_LEN / 2; // ±46.0m
+    const RAIL_CENTER_Z = 3.65;      // 左右の高欄の中心Z座標（内幅 7.3m）
+    const DECK_OUTER_Z = 4.22;       // 高欄の外側へ張り出した敷板の端（耳桁上の張り出し約57cm：IMG_8768, 8770, 8780）
+    const DECK_TOTAL_WIDTH = DECK_OUTER_Z * 2; // 8.44m
+    const BASE_Y = 4.4;
+    const ARCH_RISE = 2.55;          // 優美な放物線反り高さ
+
+    function getBridgeY(x) {
+      if (Math.abs(x) >= HALF_LEN) return BASE_Y;
+      const u = x / HALF_LEN;
+      return BASE_Y + ARCH_RISE * (1 - u * u);
+    }
+
+    function getBridgePitch(x) {
+      if (Math.abs(x) >= HALF_LEN) return 0;
+      const dy_dx = (-2 * ARCH_RISE * x) / (HALF_LEN * HALF_LEN);
+      return Math.atan(dy_dx);
+    }
+
+    const bridgeMasterGroup = new THREE.Group();
+    scene.add(bridgeMasterGroup);
+
+    // ==========================================
+    // 6. 擬宝珠（6本の横筋リング・裾の丸鋲12個・銘文）と親柱（銅板首巻き・脇束柱・猪目金具）の精密造形
+    //    （IMG_8758, 8765, 8775, 8776の完全再現）
+    // ==========================================
+    function createPrecisionGiboshiGeometry() {
+      // 写真8758, 8775, 8776の通り、胴部には2本1組×3段＝計6本のシャープな凸リング（紐）がある
+      const pts = [
+        new THREE.Vector2(0.001, 0.0),
+        new THREE.Vector2(0.305, 0.0),   // 裾広がりの台座下端
+        new THREE.Vector2(0.285, 0.045), // 丸鋲が打たれる傾斜裾部
+        // 下段の2重リング
+        new THREE.Vector2(0.278, 0.065),
+        new THREE.Vector2(0.292, 0.080),
+        new THREE.Vector2(0.275, 0.095),
+        new THREE.Vector2(0.290, 0.110),
+        new THREE.Vector2(0.270, 0.125),
+        // 胴部下段（参拝者に撫でられて赤銅色に輝く平滑面：IMG_8775）
+        new THREE.Vector2(0.266, 0.255),
+        // 中段の2重リング
+        new THREE.Vector2(0.284, 0.270),
+        new THREE.Vector2(0.266, 0.285),
+        new THREE.Vector2(0.284, 0.305),
+        new THREE.Vector2(0.264, 0.320),
+        // 胴部上段（「御裳濯川 御橋」の銘が刻まれる面：IMG_8775）
+        new THREE.Vector2(0.258, 0.435),
+        // 上段の2重リング
+        new THREE.Vector2(0.276, 0.450),
+        new THREE.Vector2(0.258, 0.465),
+        new THREE.Vector2(0.274, 0.482),
+        new THREE.Vector2(0.245, 0.505),
+        // 宝珠下のくびれ（首部）と段差リング
+        new THREE.Vector2(0.195, 0.535),
+        new THREE.Vector2(0.220, 0.565),
+        // 宝珠（玉ねぎ型の豊かで張りのある膨らみ：IMG_8775, 8776）
+        new THREE.Vector2(0.305, 0.655),
+        new THREE.Vector2(0.312, 0.725),
+        new THREE.Vector2(0.260, 0.805),
+        new THREE.Vector2(0.140, 0.875),
+        new THREE.Vector2(0.065, 0.935), // 頂部の乳首状の突起
+        new THREE.Vector2(0.038, 0.985),
+        new THREE.Vector2(0.001, 1.010)
+      ];
+      const geo = new THREE.LatheGeometry(pts, 36);
+      return geo;
+    }
+    const precisionGiboshiGeo = createPrecisionGiboshiGeometry();
+
+    // 親柱側面の「猪目（いのめ＝ハート形の切り欠きと剣先先端を持つ帯金具）＋3連六角ボルト鋲」（IMG_8758, 8765, 8776）
+    function createPrecisionInomeStrap(lenY = 0.80) {
+      const g = new THREE.Group();
+
+      // 帯金具本体
+      const plateGeo = new THREE.BoxGeometry(0.018, lenY, 0.082);
+      const plate = new THREE.Mesh(plateGeo, materials.inomeBronzeIron);
+      plate.position.y = -lenY / 2;
+      g.add(plate);
+
+      // 下端の剣先（スペード／猪目形状）
+      const tipShape = new THREE.Shape();
+      tipShape.moveTo(0, -0.13);
+      tipShape.quadraticCurveTo(0.08, -0.05, 0.062, 0.02);
+      tipShape.lineTo(-0.062, 0.02);
+      tipShape.quadraticCurveTo(-0.08, -0.05, 0, -0.13);
+      const tipGeo = new THREE.ExtrudeGeometry(tipShape, { depth: 0.018, bevelEnabled: false });
+      tipGeo.rotateY(Math.PI / 2);
+      const tipMesh = new THREE.Mesh(tipGeo, materials.inomeBronzeIron);
+      tipMesh.position.set(-0.009, -lenY, 0);
+      g.add(tipMesh);
+
+      // 3つの黒鉄ボルト頭（IMG_8758, 8776）
+      const boltGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.032, 6);
+      boltGeo.rotateZ(Math.PI / 2);
+      [-0.12, -0.40, -0.68].forEach(by => {
+        const b = new THREE.Mesh(boltGeo, materials.blackIronHardware);
+        b.position.set(0.008, by, 0);
+        g.add(b);
+      });
+
+      return g;
+    }
+
+    // 親柱1基（円柱木柱＋上端の面取りと緑青銅板首巻きリング＋擬宝珠＋裾の丸鋲12個＋4面の猪目金具＋前後の脇束柱）を生成
+    function createOyabashiraFullAssembly(x, yBase, z, postH = 1.74, attachSideWalls = 'both') {
+      const pGroup = new THREE.Group();
+      pGroup.position.set(x, yBase, z);
+
+      const radius = 0.285;
+
+      // 1) 檜の円柱親柱（上端がわずかに絞られた面取り形状：IMG_8758, 8776）
+      const colGeo = new THREE.CylinderGeometry(radius * 0.96, radius, postH, 32);
+      const colMesh = new THREE.Mesh(colGeo, materials.hinokiColumn);
+      colMesh.position.y = postH / 2;
+      colMesh.castShadow = true;
+      colMesh.receiveShadow = true;
+      pGroup.add(colMesh);
+
+      // 2) 親柱最上部の緑青銅板の保護リング（擬宝珠のすぐ下で木口を包む緑青帯：IMG_8758, 8765, 8776）
+      const topCopperGeo = new THREE.CylinderGeometry(radius * 0.99, radius * 0.99, 0.055, 32);
+      const topCopper = new THREE.Mesh(topCopperGeo, materials.verdigrisCopper);
+      topCopper.position.y = postH - 0.025;
+      pGroup.add(topCopper);
+
+      // 3) 擬宝珠本体
+      const giboshi = new THREE.Mesh(precisionGiboshiGeo, materials.giboshiBronze);
+      giboshi.position.y = postH;
+      giboshi.castShadow = true;
+      pGroup.add(giboshi);
+
+      // 4) 擬宝珠の裾周りにぐるりと打たれた12個の真鍮・青銅丸鋲（IMG_8758, 8775, 8776の極めて特徴的なディテール）
+      const rivetGeo = new THREE.SphereGeometry(0.013, 8, 8);
+      for (let r = 0; r < 12; r++) {
+        const ang = (r / 12) * Math.PI * 2;
+        const rivet = new THREE.Mesh(rivetGeo, materials.brassRivet);
+        rivet.position.set(
+          Math.cos(ang) * 0.292,
+          postH + 0.032,
+          Math.sin(ang) * 0.292
+        );
+        pGroup.add(rivet);
+      }
+
+      // 5) 4方向の猪目（いのめ）帯金具
+      for (let i = 0; i < 4; i++) {
+        const ang = (i * Math.PI) / 2;
+        const strap = createPrecisionInomeStrap(0.78);
+        strap.position.set(
+          Math.cos(ang) * (radius + 0.004),
+          postH - 0.02,
+          Math.sin(ang) * (radius + 0.004)
+        );
+        strap.rotation.y = -ang;
+        pGroup.add(strap);
+      }
+
+      // 6) 【写真8758, 8765の重要ディテール】親柱の前後にピタリと添えられた「くり形頭部の脇束柱（添え束）」
+      const sideDirs = attachSideWalls === 'both' ? [-1, 1] : (attachSideWalls === 'right' ? [1] : (attachSideWalls === 'left' ? [-1] : []));
+      sideDirs.forEach(dirX => {
+        const pilaster = buildKurigataStrutMesh();
+        pilaster.position.set(dirX * (radius + 0.085), 0, 0);
+        pGroup.add(pilaster);
+      });
+
+      bridgeMasterGroup.add(pGroup);
+      return pGroup;
+    }
+
+    // ==========================================
+    // 7. 【写真8757, 8758の超精密再現】首元がくびれた「くり形（斗きょう風）束柱」と
+    //    下の2段（平桁・地覆）と完全に平行・一体化した「架木（ほこぎ）」および「4本角釘継手プレート」
+    // ==========================================
+    // 高欄の各部材の高さ定数（橋面 y=0 からの正確な相対高さ・すべての部材が隙間なく噛み合う設計）
+    const JIFUKU_Y = 0.22;   // 下段：地覆の中心高さ（高さ0.21m → 上面0.325m, 下面0.115m）
+    const HIRAGETA_Y = 0.84; // 中段：平桁の中心高さ（高さ0.17m → 上面0.925m, 下面0.755m）
+    const HOKOGI_Y = 1.40;   // 最上段：丸い架木の中心高さ（半径0.122m → 下端1.278mで束柱頭部に密着）
+
+    function buildKurigataStrutMesh() {
+      const sGroup = new THREE.Group();
+
+      // 1) 敷板と地覆の間に挟まる台輪ブロック（IMG_8757下端：y = 0.08 〜 0.14）
+      const basePadGeo = new THREE.BoxGeometry(0.42, 0.06, 0.25);
+      const basePad = new THREE.Mesh(basePadGeo, materials.hinokiRailing);
+      basePad.position.y = 0.10;
+      sGroup.add(basePad);
+
+      // 2) 下段〜中段の角柱本体（y = 0.12 〜 1.12：地覆と平桁を貫通し一体化する柱）
+      const bodyH = 1.00;
+      const bodyGeo = new THREE.BoxGeometry(0.21, bodyH, 0.20);
+      const body = new THREE.Mesh(bodyGeo, materials.hinokiRailing);
+      body.position.y = 0.12 + bodyH / 2;
+      body.castShadow = true;
+      body.receiveShadow = true;
+      sGroup.add(body);
+
+      // 3) 首元のくびれ（内側に絞られた段：IMG_8757の束柱上部の造形 y = 1.12 〜 1.20）
+      const neckGeo = new THREE.BoxGeometry(0.165, 0.08, 0.165);
+      const neck = new THREE.Mesh(neckGeo, materials.hinokiRailing);
+      neck.position.y = 1.16;
+      sGroup.add(neck);
+
+      // 4) 最上部の斗（ます）形の広がり（y = 1.20 〜 1.34：丸い架木の下半分 y=1.278〜1.34 をしっかり抱え込む）
+      const capGeo = new THREE.BoxGeometry(0.225, 0.14, 0.225);
+      const cap = new THREE.Mesh(capGeo, materials.hinokiRailing);
+      cap.position.y = 1.27;
+      cap.castShadow = true;
+      sGroup.add(cap);
+
+      return sGroup;
+    }
+
+    // 任意の2点間に宇治橋の高欄（丸い架木・4本角釘の継手金具・くり形束柱・突起付き丸鋲の唄金具・黒鉄縦帯金具）を構築
+    function buildPrecisionRailingSpan(p1, p2, numStruts = 3) {
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const dz = p2.z - p1.z;
+      const horizLen = Math.hypot(dx, dz);
+      const spanLen = Math.hypot(dx, dy, dz);
+      const yaw = Math.atan2(-dz, dx);
+      const pitch = Math.atan2(dy, horizLen); // スパンの正確な勾配角
+
+      const spanGroup = new THREE.Group();
+      spanGroup.position.set((p1.x + p2.x) / 2, (p1.y + p2.y) / 2, (p1.z + p2.z) / 2);
+      spanGroup.rotation.y = yaw;
+
+      // 親柱や隣接スパンとの間に隙間ができないよう、横材の長さをわずかにオーバーラップさせる
+      const beamLen = spanLen + 0.08;
+
+      // 1) 最上段：円筒形の「架木（ほこぎ）」（下の2段と完全に平行になるようX軸向きにしてから rotation.z = pitch を適用）
+      const hokogiGeo = new THREE.CylinderGeometry(0.122, 0.122, beamLen, 28);
+      hokogiGeo.rotateZ(-Math.PI / 2); // まず水平（ローカルX軸方向）に向ける
+      const hokogi = new THREE.Mesh(hokogiGeo, materials.hinokiRailing);
+      hokogi.position.y = HOKOGI_Y;
+      hokogi.rotation.z = pitch;       // 平桁・地覆と全く同じ pitch 角度で傾ける（これで完全に平行かつ一直線に繋がる）
+      hokogi.castShadow = true;
+      hokogi.receiveShadow = true;
+      spanGroup.add(hokogi);
+
+      // 2) 中段：角材「平桁（ひらげた）」（IMG_8757）
+      const hiragetaGeo = new THREE.BoxGeometry(beamLen, 0.17, 0.225);
+      const hirageta = new THREE.Mesh(hiragetaGeo, materials.hinokiRailing);
+      hirageta.position.y = HIRAGETA_Y;
+      hirageta.rotation.z = pitch;
+      hirageta.castShadow = true;
+      hirageta.receiveShadow = true;
+      spanGroup.add(hirageta);
+
+      // 3) 下段：重厚な角材「地覆（じふく）」（IMG_8757）
+      const jifukuGeo = new THREE.BoxGeometry(beamLen, 0.21, 0.255);
+      const jifuku = new THREE.Mesh(jifukuGeo, materials.hinokiRailing);
+      jifuku.position.y = JIFUKU_Y;
+      jifuku.rotation.z = pitch;
+      jifuku.castShadow = true;
+      jifuku.receiveShadow = true;
+      spanGroup.add(jifuku);
+
+      // 4) 各束柱（くり形頭部）＋金具ディテール（IMG_8757の完全再現）
+      for (let k = 1; k <= numStruts; k++) {
+        const ratio = k / (numStruts + 1) - 0.5;
+        const sx = ratio * horizLen;
+        const sy = ratio * dy;
+
+        // くり形束柱（垂直に立ち、上端の斗形ブロックが架木 HOKOGI_Y にしっかり食い込んで支える）
+        const strut = buildKurigataStrutMesh();
+        strut.position.set(sx, sy, 0);
+        spanGroup.add(strut);
+
+        // 【写真8757の核心ディテール①】架木の継手上部に密着する「金属カバープレートと4本の黒い角釘」
+        // 架木と同じ勾配角（pitch）を持つグループに配置することで、架木の上面にピタリと密着させる
+        const jointHardwareGroup = new THREE.Group();
+        jointHardwareGroup.position.set(sx, sy + HOKOGI_Y, 0);
+        jointHardwareGroup.rotation.z = pitch;
+
+        const topPlateGeo = new THREE.CylinderGeometry(0.127, 0.127, 0.36, 20, 1, true, -Math.PI * 0.32, Math.PI * 0.64);
+        topPlateGeo.rotateZ(-Math.PI / 2);
+        const topPlate = new THREE.Mesh(topPlateGeo, materials.blackIronHardware);
+        jointHardwareGroup.add(topPlate);
+
+        // プレート上に1列に突き出た4本の黒い角釘（IMG_8757, 8758, 8768, 8769, 8776）
+        const pegGeo = new THREE.BoxGeometry(0.018, 0.032, 0.018);
+        [-0.12, -0.04, 0.04, 0.12].forEach(dxPeg => {
+          const peg = new THREE.Mesh(pegGeo, materials.blackIronHardware);
+          peg.position.set(dxPeg, 0.132, 0);
+          jointHardwareGroup.add(peg);
+        });
+        spanGroup.add(jointHardwareGroup);
+
+        // 【写真8757の核心ディテール②】平桁の中央に打たれたドーム状の「唄金具（中央に小さな突起がある丸鋲）」と、
+        // その下の束柱・地覆を縦に貫く「4点鋲留めの黒鉄帯金具」
+        [-1, 1].forEach(sideZ => {
+          // ドーム状の丸座金（唄金具）
+          const domeGeo = new THREE.SphereGeometry(0.042, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
+          domeGeo.rotateX(sideZ > 0 ? Math.PI / 2 : -Math.PI / 2);
+          const dome = new THREE.Mesh(domeGeo, materials.blackIronHardware);
+          dome.position.set(sx, sy + HIRAGETA_Y, sideZ * 0.114);
+          spanGroup.add(dome);
+
+          // ドーム中央の乳首状小突起（IMG_8757）
+          const centerNippleGeo = new THREE.CylinderGeometry(0.009, 0.012, 0.022, 8);
+          centerNippleGeo.rotateX(Math.PI / 2);
+          const nipple = new THREE.Mesh(centerNippleGeo, materials.brassRivet);
+          nipple.position.set(sx, sy + HIRAGETA_Y, sideZ * 0.150);
+          spanGroup.add(nipple);
+
+          // 平桁の下から地覆の下端まで垂直に伸びる黒鉄帯金具（4つの鋲付き：IMG_8757）
+          const vStrapGeo = new THREE.BoxGeometry(0.042, 0.64, 0.016);
+          const vStrap = new THREE.Mesh(vStrapGeo, materials.blackIronHardware);
+          vStrap.position.set(sx, sy + 0.44, sideZ * 0.130);
+          spanGroup.add(vStrap);
+
+          // 帯金具上の4つのリベット鋲
+          const smallRivetGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.024, 6);
+          smallRivetGeo.rotateX(Math.PI / 2);
+          [0.68, 0.52, 0.28, 0.15].forEach(ry => {
+            const rv = new THREE.Mesh(smallRivetGeo, materials.blackIronHardware);
+            rv.position.set(sx, sy + ry, sideZ * 0.135);
+            spanGroup.add(rv);
+          });
+        });
+      }
+
+      bridgeMasterGroup.add(spanGroup);
+    }
+
+    // ==========================================
+    // 8. 橋面上部構造：敷板・外側張り出し床（水抜き穴と2列の黒釘）・中央縁木（右側通行分離帯）・16基の親柱と袖高欄
+    //    （IMG_8752〜8766, 8768, 8770, 8774, 8780の完全再現）
+    // ==========================================
+    function buildUpperBridgeDeckAndRailings() {
+      // 1) 檜の敷板（高欄の地覆より外側へ約57cm張り出し、板間にわずかな排水目地を持つ：IMG_8768, 8770）
+      const numPlanks = 148;
+      const stepX = BRIDGE_LEN / numPlanks;
+      const plankGeo = new THREE.BoxGeometry(stepX * 0.90, 0.19, DECK_TOTAL_WIDTH);
+      const plankInst = new THREE.InstancedMesh(plankGeo, materials.hinokiDeck, numPlanks);
+      plankInst.castShadow = true;
+      plankInst.receiveShadow = true;
+
+      // 外側張り出し部（z = ±3.98付近）に打たれた2列の黒い角釘頭（IMG_8768, 8770）
+      const nailGeo = new THREE.BoxGeometry(0.025, 0.015, 0.025);
+      const nailInst = new THREE.InstancedMesh(nailGeo, materials.blackIronHardware, numPlanks * 4);
+
+      const dummy = new THREE.Object3D();
+      const nailDummy = new THREE.Object3D();
+      let nailIdx = 0;
+
+      for (let i = 0; i < numPlanks; i++) {
+        const x = -HALF_LEN + (i + 0.5) * stepX;
+        const y = getBridgeY(x);
+        const pitch = getBridgePitch(x);
+        dummy.position.set(x, y, 0);
+        dummy.rotation.set(0, 0, pitch);
+        dummy.updateMatrix();
+        plankInst.setMatrixAt(i, dummy.matrix);
+
+        // 両外端（上流側・下流側の張り出し敷板）の黒釘列
+        [-1, 1].forEach(sZ => {
+          [3.92, 4.10].forEach(absZ => {
+            nailDummy.position.set(x, y + 0.098, sZ * absZ);
+            nailDummy.rotation.set(0, 0, pitch);
+            nailDummy.updateMatrix();
+            nailInst.setMatrixAt(nailIdx++, nailDummy.matrix);
+          });
+        });
+      }
+      bridgeMasterGroup.add(plankInst);
+      bridgeMasterGroup.add(nailInst);
+
+      // 2) 【写真8752, 8755, 8759, 8764, 8774の核心ディテール】
+      // 橋面中央を縦断する台形断面の木製「中央縁木（右側通行の中央分離帯）」と両端の斜め切り落とし＆黒鉄沓金具
+      const medianSegs = 60;
+      const medianLen = BRIDGE_LEN - 0.6;
+      const mStep = medianLen / medianSegs;
+
+      for (let i = 0; i < medianSegs; i++) {
+        const x = -medianLen / 2 + (i + 0.5) * mStep;
+        const y = getBridgeY(x) + 0.135;
+        const pitch = getBridgePitch(x);
+
+        // 上面が面取りされた角材の中央縁木（幅約22cm、高さ約10cm：IMG_8759, 8764）
+        const curGeo = new THREE.BoxGeometry(mStep * 1.01, 0.095, 0.22);
+        const curMesh = new THREE.Mesh(curGeo, materials.hinokiRailing);
+        curMesh.position.set(x, y, 0);
+        curMesh.rotation.z = pitch;
+        curMesh.castShadow = true;
+        curMesh.receiveShadow = true;
+        bridgeMasterGroup.add(curMesh);
+      }
+
+      // 中央縁木の両端（x = ±45.7）の斜めスロープ状の端面と、床に固定する黒鉄のL字沓金具（IMG_8752, 8774の手前に写る端部納まり）
+      [-1, 1].forEach(endSign => {
+        const tipX = endSign * (HALF_LEN - 0.18);
+        const tipGroup = new THREE.Group();
+        tipGroup.position.set(tipX, getBridgeY(tipX) + 0.095, 0);
+        if (endSign < 0) tipGroup.rotation.y = Math.PI;
+
+        // 斜めに削ぎ落とされた木製先端ブロック（IMG_8752, 8774）
+        const rampGeo = new THREE.BoxGeometry(0.32, 0.09, 0.22);
+        const rampMesh = new THREE.Mesh(rampGeo, materials.hinokiRailing);
+        rampMesh.position.set(-0.08, 0.03, 0);
+        rampMesh.rotation.z = -0.22;
+        tipGroup.add(rampMesh);
+
+        // 先端の黒鉄U字・L字固定金具（IMG_8752, 8774）
+        const bracketGeo = new THREE.BoxGeometry(0.14, 0.035, 0.25);
+        const bracket = new THREE.Mesh(bracketGeo, materials.blackIronHardware);
+        bracket.position.set(0.06, 0.015, 0);
+        tipGroup.add(bracket);
+
+        bridgeMasterGroup.add(tipGroup);
+      });
+
+      // 3) 橋桁（主桁3本＋外側の耳桁2本＝計5列の重厚な縦桁）と、張り出し敷板の下端水切り木縁（IMG_8746〜8750, 8780）
+      const girderZPositions = [-3.85, -1.92, 0, 1.92, 3.85];
+      const girderSegs = 44;
+      const gStep = BRIDGE_LEN / girderSegs;
+
+      girderZPositions.forEach((gz, gIdx) => {
+        const isEdge = (gIdx === 0 || gIdx === girderZPositions.length - 1);
+        const gHeight = isEdge ? 0.66 : 0.56;
+        const gWidth = isEdge ? 0.44 : 0.38;
+        const gGeo = new THREE.BoxGeometry(gStep * 1.02, gHeight, gWidth);
+
+        for (let i = 0; i < girderSegs; i++) {
+          const x = -HALF_LEN + (i + 0.5) * gStep;
+          const y = getBridgeY(x) - gHeight / 2 - 0.08;
+          const pitch = getBridgePitch(x);
+          const gMesh = new THREE.Mesh(gGeo, materials.hinokiSubstructure);
+          gMesh.position.set(x, y, gz);
+          gMesh.rotation.z = pitch;
+          gMesh.castShadow = true;
+          gMesh.receiveShadow = true;
+          bridgeMasterGroup.add(gMesh);
+        }
+      });
+
+      // 敷板側面（耳桁の上、z = ±4.22）の苔・風化を帯びた側面鼻隠しライン（IMG_8746, 8749）
+      [-DECK_OUTER_Z, DECK_OUTER_Z].forEach(edgeZ => {
+        for (let i = 0; i < girderSegs; i++) {
+          const x = -HALF_LEN + (i + 0.5) * gStep;
+          const y = getBridgeY(x) - 0.02;
+          const pitch = getBridgePitch(x);
+          const fasciaGeo = new THREE.BoxGeometry(gStep * 1.01, 0.22, 0.06);
+          const fascia = new THREE.Mesh(fasciaGeo, materials.kikkoMasonry);
+          fascia.position.set(x, y, edgeZ);
+          fascia.rotation.z = pitch;
+          bridgeMasterGroup.add(fascia);
+        }
+      });
+
+      // 4) 本橋の親柱（片側7基×左右＝14基）＋袖高欄外端の親柱（東西左右＝4基）の配置と高欄スパン接続
+      const bridgePostXList = [-46.0, -31.0, -15.5, 0.0, 15.5, 31.0, 46.0];
+
+      [-RAIL_CENTER_Z, RAIL_CENTER_Z].forEach(zSide => {
+        // 本橋上の親柱
+        bridgePostXList.forEach((px, idx) => {
+          const attach = (idx === 0) ? 'right' : (idx === bridgePostXList.length - 1 ? 'left' : 'both');
+          createOyabashiraFullAssembly(px, getBridgeY(px), zSide, 1.74, attach);
+        });
+
+        // 親柱間の高欄スパン（アーチ曲線に沿って各区間を3分割し、各区間にくり形束柱と4本角釘継手を配置：IMG_8756, 8757）
+        for (let i = 0; i < bridgePostXList.length - 1; i++) {
+          const xStart = bridgePostXList[i];
+          const xEnd = bridgePostXList[i + 1];
+          const subDivs = 3;
+          for (let s = 0; s < subDivs; s++) {
+            const xa = xStart + (xEnd - xStart) * (s / subDivs);
+            const xb = xStart + (xEnd - xStart) * ((s + 1) / subDivs);
+            buildPrecisionRailingSpan(
+              new THREE.Vector3(xa, getBridgeY(xa), zSide),
+              new THREE.Vector3(xb, getBridgeY(xb), zSide),
+              1
+            );
+          }
+        }
+      });
+
+      // 5) 両橋詰（西詰 x = -46.0、東詰 x = +46.0）で左右外側へL字型に折れ曲がる「袖高欄（そでこうらん）」と外端親柱、
+      //    および親柱脇の張り出し床上の「黒い鉄格子（侵入防止柵）」（IMG_8739〜8743, 8753, 8754, 8773, 8777, 8780, 8781）
+      const sodeOuterZ = 7.45;
+      [-1, 1].forEach(endSign => {
+        const endX = endSign * HALF_LEN;
+        [-1, 1].forEach(sideSign => {
+          const innerZ = sideSign * RAIL_CENTER_Z;
+          const outerZ = sideSign * sodeOuterZ;
+          const outerY = BASE_Y - 0.16; // 亀甲積み橋台のスロープに合わせたわずかな勾配（IMG_8743）
+
+          // 袖高欄外端の親柱
+          createOyabashiraFullAssembly(endX, outerY, outerZ, 1.74, 'none');
+
+          // 袖高欄スパン（3本のくり形束柱＋中央の唄金具丸鋲と黒鉄帯：IMG_8742, 8743, 8754, 8777）
+          buildPrecisionRailingSpan(
+            new THREE.Vector3(endX, BASE_Y, innerZ),
+            new THREE.Vector3(endX, outerY, outerZ),
+            3
+          );
+
+          // 【写真8753, 8754, 8773, 8780のディテール】橋端親柱の外側（袖高欄の裏側・張り出し敷板の端）に設置された黒い縦格子アイアンフェンス
+          const grilleGroup = new THREE.Group();
+          const grilleX = endX - endSign * 0.55;
+          const grilleZ = sideSign * (RAIL_CENTER_Z + 0.45);
+          grilleGroup.position.set(grilleX, BASE_Y, grilleZ);
+
+          for (let b = 0; b < 5; b++) {
+            const barGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.92, 8);
+            const bar = new THREE.Mesh(barGeo, materials.blackIronHardware);
+            bar.position.set(0, 0.46, (b - 2) * 0.11);
+            grilleGroup.add(bar);
+          }
+          [0.15, 0.82].forEach(hy => {
+            const hBarGeo = new THREE.BoxGeometry(0.025, 0.025, 0.52);
+            const hBar = new THREE.Mesh(hBarGeo, materials.blackIronHardware);
+            hBar.position.set(0, hy, 0);
+            grilleGroup.add(hBar);
+          });
+          bridgeMasterGroup.add(grilleGroup);
+        });
+      });
+    }
+    buildUpperBridgeDeckAndRailings();
+
+    // ==========================================
+    // 9. 【写真8745〜8750の完全再現】下部工（11列の橋脚群）：
+    //    4本角柱・冠木と切妻小屋根カバー・白塗り木口の2段貫・X字筋交い（ブレース）・方杖・緑青銅板の根元袴
+    // ==========================================
+    function buildBridgeSubstructurePiers() {
+      // 陸上護岸スロープ上（±39.5, ±32.0）から川中（±24.0, ±16.0, ±8.0, 0.0）まで計11列の橋脚列（IMG_8746〜8749の連続橋脚）
+      const pierXPositions = [-39.5, -32.0, -24.0, -16.0, -8.0, 0.0, 8.0, 16.0, 24.0, 32.0, 39.5];
+      const colZPositions = [-3.15, -1.05, 1.05, 3.15];
+
+      pierXPositions.forEach((px, pIdx) => {
+        const pierGroup = new THREE.Group();
+        const girderBottomY = getBridgeY(px) - 0.62;
+
+        // 陸上の石張り法面上か、五十鈴川の河床かによって橋脚の根元高さを決定（IMG_8746〜8749）
+        let groundY = -1.35;
+        if (Math.abs(px) > 36) groundY = 1.65;
+        else if (Math.abs(px) > 28) groundY = 0.85;
+        else if (Math.abs(px) > 20) groundY = 0.15;
+
+        const colH = girderBottomY - groundY;
+
+        // 1) 4本の太い檜角柱と、根元の緑青銅板の袴金具＋黒鉄沓（IMG_8745, 8746, 8749）
+        const colGeo = new THREE.BoxGeometry(0.54, colH, 0.54);
+        colZPositions.forEach(pz => {
+          const colMesh = new THREE.Mesh(colGeo, materials.hinokiSubstructure);
+          colMesh.position.set(px, groundY + colH / 2, pz);
+          colMesh.castShadow = true;
+          colMesh.receiveShadow = true;
+          pierGroup.add(colMesh);
+
+          // 根元の緑青銅板袴（水面または石畳面の上部：IMG_8745, 8746）
+          const collarY = Math.max(groundY + 0.22, 0.45);
+          const copperGeo = new THREE.BoxGeometry(0.58, 0.36, 0.58);
+          const copper = new THREE.Mesh(copperGeo, materials.verdigrisCopper);
+          copper.position.set(px, collarY, pz);
+          pierGroup.add(copper);
+
+          const shoeGeo = new THREE.BoxGeometry(0.64, 0.10, 0.64);
+          const shoe = new THREE.Mesh(shoeGeo, materials.blackIronHardware);
+          shoe.position.set(px, collarY - 0.18, pz);
+          pierGroup.add(shoe);
+        });
+
+        // 2) 橋脚頭部の横梁「冠木（かぶき）」と、その両端を守る「切妻小屋根カバー（白い破風板＋懸魚板）」（IMG_8745, 8746, 8749の象徴的ディテール）
+        const capLen = DECK_TOTAL_WIDTH + 0.35;
+        const capGeo = new THREE.BoxGeometry(0.66, 0.54, capLen);
+        const capBeam = new THREE.Mesh(capGeo, materials.hinokiSubstructure);
+        capBeam.position.set(px, girderBottomY - 0.18, 0);
+        capBeam.castShadow = true;
+        pierGroup.add(capBeam);
+
+        [-1, 1].forEach(sideZ => {
+          const roofZ = sideZ * (capLen / 2 + 0.08);
+          const roofBox = new THREE.Group();
+          roofBox.position.set(px, girderBottomY - 0.16, roofZ);
+
+          // 冠木木口を覆う縦長の木製保護板（IMG_8745, 8749）
+          const faceBoardGeo = new THREE.BoxGeometry(0.56, 0.76, 0.22);
+          const faceBoard = new THREE.Mesh(faceBoardGeo, materials.hinokiSubstructure);
+          faceBoard.position.y = -0.10;
+          faceBoard.castShadow = true;
+          roofBox.add(faceBoard);
+
+          // 切妻の小屋根（白い木口塗装の破風と屋根板：IMG_8745, 8746, 8749）
+          [-1, 1].forEach(sSlope => {
+            const slopeGeo = new THREE.BoxGeometry(0.50, 0.065, 0.44);
+            const slope = new THREE.Mesh(slopeGeo, materials.whiteProtectiveCoat);
+            slope.position.set(sSlope * 0.19, 0.32, sideZ * 0.04);
+            slope.rotation.z = -sSlope * 0.48;
+            slope.castShadow = true;
+            roofBox.add(slope);
+          });
+
+          pierGroup.add(roofBox);
+        });
+
+        // 3) 【写真8746〜8749の重要構造】
+        //    橋脚を横方向（Z方向）に貫く上下2段の「貫（ぬき）」と、橋軸方向（X方向）に突き出た「白い木口の短貫・通し貫」
+        const whiteEndMatArray = [
+          materials.whiteProtectiveCoat, // +X端面（白塗り）
+          materials.whiteProtectiveCoat, // -X端面（白塗り）
+          materials.hinokiSubstructure,
+          materials.hinokiSubstructure,
+          materials.whiteProtectiveCoat, // +Z端面（白塗り）
+          materials.whiteProtectiveCoat  // -Z端面（白塗り）
+        ];
+
+        // 上段の横貫（冠木の下約1.1m：IMG_8746, 8749）
+        const upperNukiY = girderBottomY - 1.15;
+        const upperTransNukiGeo = new THREE.BoxGeometry(0.28, 0.30, DECK_TOTAL_WIDTH - 0.8);
+        const upperTransNuki = new THREE.Mesh(upperTransNukiGeo, whiteEndMatArray);
+        upperTransNuki.position.set(px, upperNukiY, 0);
+        upperTransNuki.castShadow = true;
+        pierGroup.add(upperTransNuki);
+
+        // 上段の柱前後に突き出る白塗り木口の短貫（IMG_8745, 8746, 8749で柱の両脇に白く2つ並んで見える木口）
+        colZPositions.forEach(pz => {
+          const shortLugGeo = new THREE.BoxGeometry(1.22, 0.28, 0.26);
+          const shortLug = new THREE.Mesh(shortLugGeo, whiteEndMatArray);
+          shortLug.position.set(px, upperNukiY - 0.05, pz);
+          shortLug.castShadow = true;
+          pierGroup.add(shortLug);
+        });
+
+        // 下段の横貫＆X字筋交い（ブレース）（第2橋脚〜第10橋脚：IMG_8746〜8749の右奥に連続するX字トラス構造）
+        if (Math.abs(px) < 35) {
+          const lowerNukiY = Math.max(groundY + 0.75, 0.95);
+          const lowerTransNuki = new THREE.Mesh(upperTransNukiGeo, whiteEndMatArray);
+          lowerTransNuki.position.set(px, lowerNukiY, 0);
+          lowerTransNuki.castShadow = true;
+          pierGroup.add(lowerTransNuki);
+
+          // 下段の柱前後に突き出る白塗り短貫と黒鉄ボルト（IMG_8746, 8748, 8749）
+          colZPositions.forEach(pz => {
+            const lowLugGeo = new THREE.BoxGeometry(1.15, 0.26, 0.25);
+            const lowLug = new THREE.Mesh(lowLugGeo, whiteEndMatArray);
+            lowLug.position.set(px, lowerNukiY, pz);
+            pierGroup.add(lowLug);
+          });
+
+          // 4本の橋脚の間（3スパン：z = -2.1, 0, +2.1）に組まれた「X字筋交い（ブレース）」（IMG_8746〜8749の象徴的な下部工ディテール）
+          const braceMidZList = [-2.10, 0.0, 2.10];
+          const braceHeight = upperNukiY - lowerNukiY;
+          const braceSpanZ = 2.10;
+          const diagLen = Math.hypot(braceHeight, braceSpanZ);
+          const diagAngle = Math.atan2(braceSpanZ, braceHeight);
+
+          braceMidZList.forEach(midZ => {
+            [-1, 1].forEach(crossSign => {
+              const xBraceGeo = new THREE.BoxGeometry(0.20, diagLen, 0.20);
+              const xBrace = new THREE.Mesh(xBraceGeo, materials.hinokiSubstructure);
+              xBrace.position.set(px, (upperNukiY + lowerNukiY) / 2, midZ);
+              xBrace.rotation.x = crossSign * diagAngle;
+              xBrace.castShadow = true;
+              pierGroup.add(xBrace);
+            });
+          });
+        }
+
+        // 4) 橋脚から橋桁（主桁・耳桁）へ斜め上に伸びる「方杖（ほうづえ）」（IMG_8745〜8750で柱の両脇からV字状に桁を支える斜材）
+        [-1, 1].forEach(dirX => {
+          const strutLen = 2.55;
+          const strutGeo = new THREE.BoxGeometry(0.24, strutLen, 0.24);
+          colZPositions.forEach(pz => {
+            const hozue = new THREE.Mesh(strutGeo, materials.hinokiSubstructure);
+            hozue.position.set(px + dirX * 0.88, girderBottomY - 0.88, pz);
+            hozue.rotation.z = -dirX * 0.70;
+            hozue.castShadow = true;
+            pierGroup.add(hozue);
+          });
+        });
+
+        bridgeMasterGroup.add(pierGroup);
+      });
+    }
+    buildBridgeSubstructurePiers();
+
+    // ==========================================
+    // 10. 【写真8760, 8764, 8767, 8768の完全再現】
+    //     上流側（+Z側）の五十鈴川中に独立して並ぶ「Aフレーム構造の木除け杭（きよけぐい）」と水切り白波
+    // ==========================================
+    const kiyokeWakeCircles = [];
+
+    function buildUpstreamKiyokegui() {
+      // 川中の7基の橋脚列の上流側（z = +9.2m付近）に独立して立つ木除け杭（IMG_8767, 8768）
+      const kiyokeXList = [-24.0, -16.0, -8.0, 0.0, 8.0, 16.0, 24.0];
+      const kiyokeBaseZ = 9.2;
+
+      kiyokeXList.forEach(kx => {
+        const kGroup = new THREE.Group();
+        kGroup.position.set(kx, 0, kiyokeBaseZ);
+
+        // 1) 主杭（やや後ろへ傾いて高くそびえる太い角柱〜円柱杭：IMG_8767, 8768）
+        const mainPileH = 5.4;
+        const mainPileGeo = new THREE.BoxGeometry(0.38, mainPileH, 0.38);
+        const mainPile = new THREE.Mesh(mainPileGeo, materials.hinokiSubstructure);
+        mainPile.position.set(0, 1.45, -0.35);
+        mainPile.rotation.x = -0.16;
+        mainPile.castShadow = true;
+        kGroup.add(mainPile);
+
+        // 2) 主杭の頂部に載る「切妻型の小屋根（笠木）」（IMG_8760, 8764, 8767, 8768で杭のてっぺんに見える小屋根）
+        const capRoofGroup = new THREE.Group();
+        capRoofGroup.position.set(0, 4.12, -0.78);
+        [-1, 1].forEach(s => {
+          const rPlateGeo = new THREE.BoxGeometry(0.42, 0.06, 0.48);
+          const rPlate = new THREE.Mesh(rPlateGeo, materials.whiteProtectiveCoat);
+          rPlate.position.set(s * 0.15, 0, 0);
+          rPlate.rotation.z = -s * 0.42;
+          capRoofGroup.add(rPlate);
+        });
+        kGroup.add(capRoofGroup);
+
+        // 3) 上流側（+Z側）で流木を受け止める「斜めの前控え杭（前面が白く保護塗装・銅板巻きされた斜材）」（IMG_8767, 8768）
+        const frontSlantGeo = new THREE.BoxGeometry(0.32, 3.6, 0.32);
+        const frontSlant = new THREE.Mesh(frontSlantGeo, materials.hinokiSubstructure);
+        frontSlant.position.set(0, 1.05, 0.42);
+        frontSlant.rotation.x = -0.46;
+        frontSlant.castShadow = true;
+        kGroup.add(frontSlant);
+
+        // 前控え杭の前面の白い水切り保護面（IMG_8767, 8768）
+        const whiteShieldGeo = new THREE.BoxGeometry(0.34, 2.2, 0.06);
+        const whiteShield = new THREE.Mesh(whiteShieldGeo, materials.whiteProtectiveCoat);
+        whiteShield.position.set(0, 1.45, 0.62);
+        whiteShield.rotation.x = -0.46;
+        kGroup.add(whiteShield);
+
+        // 4) 水面すれすれで主杭と前控え杭を水平に結ぶ「根絡み貫（水平つなぎ材、木口が白塗り）」（IMG_8767, 8768）
+        const tieBeamGeo = new THREE.BoxGeometry(0.95, 0.24, 0.24);
+        const tieBeam = new THREE.Mesh(tieBeamGeo, materials.whiteProtectiveCoat);
+        tieBeam.position.set(0, 0.65, 0.85);
+        kGroup.add(tieBeam);
+
+        const longitudinalTieGeo = new THREE.BoxGeometry(0.24, 0.24, 1.95);
+        const longitudinalTie = new THREE.Mesh(longitudinalTieGeo, materials.hinokiSubstructure);
+        longitudinalTie.position.set(0, 0.65, 0.15);
+        kGroup.add(longitudinalTie);
+
+        // 5) 水面で二手に激しく割れるV字の白波（ウェーキ：IMG_8767, 8768の迫力ある水流表現）
+        const wakeShape = new THREE.RingGeometry(0.35, 1.65, 24, 1, -Math.PI * 0.85, Math.PI * 0.7);
+        wakeShape.rotateX(-Math.PI / 2);
+        const wakeMat = new THREE.MeshBasicMaterial({
+          color: 0xf8fafc,
+          transparent: true,
+          opacity: 0.65,
+          side: THREE.DoubleSide
+        });
+        const wakeMesh = new THREE.Mesh(wakeShape, wakeMat);
+        wakeMesh.position.set(0, 0.44, 0.25);
+        kGroup.add(wakeMesh);
+        kiyokeWakeCircles.push(wakeMesh);
+
+        bridgeMasterGroup.add(kGroup);
+      });
+    }
+    buildUpstreamKiyokegui();
+
+    // ==========================================
+    // 11. 両端の橋詰（西詰・東詰）：
+    //     千鳥目地の御影石切石舗装・洗い出し舗装・2段の亀甲積み石垣橋台・神明鳥居・右側通行立札・水抜き石溝
+    //     （IMG_8736〜8744, 8751〜8755, 8771〜8782の完全再現・樹木や不要物は一切配置しない）
+    // ==========================================
+    function buildAbutmentsApproachesAndTorii() {
+      [-1, 1].forEach(endSign => {
+        // endSign = +1: 東詰（内宮側：IMG_8736〜8755）
+        // endSign = -1: 西詰（外側大広場側：IMG_8771〜8782）
+        const bridgeEndX = endSign * HALF_LEN; // ±46.0
+        const toriiX = endSign * (HALF_LEN + 6.4); // ±52.4
+
+        // 1) 橋端（±46.0）〜中間の千鳥目地・御影石切石舗装エリア（幅7.3m、奥行2.8m：IMG_8752, 8753, 8754, 8778, 8779）
+        const cutStoneZoneX = endSign * (HALF_LEN + 1.4);
+        const cutStoneGeo = new THREE.BoxGeometry(2.8, 0.42, 7.3);
+        const cutStoneMesh = new THREE.Mesh(cutStoneGeo, materials.graniteStaggeredPaving);
+        cutStoneMesh.position.set(cutStoneZoneX, BASE_Y - 0.12, 0);
+        cutStoneMesh.receiveShadow = true;
+        bridgeMasterGroup.add(cutStoneMesh);
+
+        // 2) その外側（±47.4 〜 鳥居 ±52.4）の「洗い出し舗装（濃いグレー砂利面）」と「御影石の切石フレーム縁取り」（IMG_8738〜8742, 8777, 8781）
+        const washedZoneX = endSign * (HALF_LEN + 3.9);
+        const frameSlabGeo = new THREE.BoxGeometry(5.0, 0.41, 15.2);
+        const frameSlab = new THREE.Mesh(frameSlabGeo, materials.graniteBorderStone);
+        frameSlab.position.set(washedZoneX, BASE_Y - 0.125, 0);
+        frameSlab.receiveShadow = true;
+        bridgeMasterGroup.add(frameSlab);
+
+        // 左右2区画および袖高欄内側の洗い出し舗装パネル（IMG_8739〜8742, 8781）
+        [-2.05, 2.05].forEach(pz => {
+          const wPanelGeo = new THREE.BoxGeometry(3.8, 0.02, 3.3);
+          const wPanel = new THREE.Mesh(wPanelGeo, materials.washedPaving);
+          wPanel.position.set(washedZoneX, BASE_Y + 0.085, pz);
+          wPanel.receiveShadow = true;
+          bridgeMasterGroup.add(wPanel);
+        });
+        [-5.35, 5.35].forEach(pzOuter => {
+          const wOuterGeo = new THREE.BoxGeometry(4.2, 0.02, 2.6);
+          const wOuter = new THREE.Mesh(wOuterGeo, materials.washedPaving);
+          wOuter.position.set(washedZoneX - endSign * 0.2, BASE_Y + 0.01, pzOuter);
+          wOuter.rotation.x = (pzOuter > 0 ? 1 : -1) * 0.035;
+          wOuter.receiveShadow = true;
+          bridgeMasterGroup.add(wOuter);
+        });
+
+        // 鳥居の柱の内側を横断する白い御影石の見切り縁石（IMG_8736, 8742, 8777）
+        const curbStoneGeo = new THREE.BoxGeometry(0.42, 0.43, 15.4);
+        const curbStone = new THREE.Mesh(curbStoneGeo, materials.whiteProtectiveCoat);
+        curbStone.position.set(endSign * (HALF_LEN + 6.1), BASE_Y - 0.12, 0);
+        curbStone.receiveShadow = true;
+        bridgeMasterGroup.add(curbStone);
+
+        // 鳥居の外側に広がる玉砂利参道広場（IMG_8736〜8738, 8782）
+        const outerPlazaGeo = new THREE.BoxGeometry(16.0, 0.40, 26.0);
+        const outerPlaza = new THREE.Mesh(outerPlazaGeo, materials.gravelGround);
+        outerPlaza.position.set(endSign * (HALF_LEN + 14.2), BASE_Y - 0.14, 0);
+        outerPlaza.receiveShadow = true;
+        bridgeMasterGroup.add(outerPlaza);
+
+        // 3) 2段の亀甲積み（多角形石積み）橋台・犬走り階段テラス（IMG_8743, 8744の精密構造）
+        // 橋詰の下部（川岸との境界）および袖高欄の真下を支える重厚な亀甲積み石垣
+        const mainAbutmentWallGeo = new THREE.BoxGeometry(5.6, 3.2, 15.6);
+        const mainAbutmentWall = new THREE.Mesh(mainAbutmentWallGeo, materials.kikkoMasonry);
+        mainAbutmentWall.position.set(endSign * (HALF_LEN + 2.6), BASE_Y - 1.72, 0);
+        mainAbutmentWall.receiveShadow = true;
+        mainAbutmentWall.castShadow = true;
+        bridgeMasterGroup.add(mainAbutmentWall);
+
+        // 袖高欄の下の2段テラス状の亀甲積み石段と御影石笠石（IMG_8743, 8744）
+        [-1, 1].forEach(sideSign => {
+          const stepTerraceGeo = new THREE.BoxGeometry(5.4, 1.5, 1.8);
+          const stepTerrace = new THREE.Mesh(stepTerraceGeo, materials.kikkoMasonry);
+          stepTerrace.position.set(endSign * (HALF_LEN + 2.4), BASE_Y - 1.55, sideSign * 8.2);
+          stepTerrace.receiveShadow = true;
+          bridgeMasterGroup.add(stepTerrace);
+
+          const copingGeo = new THREE.BoxGeometry(5.5, 0.14, 1.95);
+          const coping = new THREE.Mesh(copingGeo, materials.graniteBorderStone);
+          coping.position.set(endSign * (HALF_LEN + 2.4), BASE_Y - 0.78, sideSign * 8.2);
+          bridgeMasterGroup.add(coping);
+        });
+
+        // 4) 中央縁木のすぐ外側（切石舗装と木製敷板の境界：x = ±46.25）に立つ木製「右側通行」案内立札（IMG_8736, 8752, 8771, 8772）
+        const signGroup = new THREE.Group();
+        signGroup.position.set(endSign * (HALF_LEN + 0.22), BASE_Y + 0.08, 0);
+
+        // 角柱支柱
+        const postGeo = new THREE.BoxGeometry(0.075, 2.55, 0.075);
+        const post = new THREE.Mesh(postGeo, materials.hinokiRailing);
+        post.position.y = 1.275;
+        post.castShadow = true;
+        signGroup.add(post);
+
+        // 上部の「右側通行」木箱と切妻小屋根（IMG_8752のクローズアップ再現）
+        const signBoxMat = [
+          new THREE.MeshStandardMaterial({ map: rightTrafficTex, roughness: 0.4 }),
+          new THREE.MeshStandardMaterial({ map: rightTrafficTex, roughness: 0.4 }),
+          materials.hinokiRailing,
+          materials.hinokiRailing,
+          materials.hinokiRailing,
+          materials.hinokiRailing
+        ];
+        const signBoxGeo = new THREE.BoxGeometry(0.12, 0.72, 0.38);
+        const signBox = new THREE.Mesh(signBoxGeo, signBoxMat);
+        signBox.position.y = 2.45;
+        signBox.castShadow = true;
+        signGroup.add(signBox);
+
+        const roofCapGeo = new THREE.BoxGeometry(0.24, 0.045, 0.48);
+        const roofCap = new THREE.Mesh(roofCapGeo, materials.hinokiRailing);
+        roofCap.position.y = 2.83;
+        signGroup.add(roofCap);
+
+        bridgeMasterGroup.add(signGroup);
+
+        // 5) 【写真 IMG_8736, 8737, 8782の完全再現】伊勢神宮特有の大鳥居（神明鳥居・内宮鳥居様式）
+        //    特徴①：貫（ぬき）が柱の外側へ一切突き出さない（柱の内側間のみで完結する伊勢神宮独自の神明鳥居）
+        //    特徴②：貫の上面・柱の内側脇に「台形の楔（くさび・木鼻状の突起）」が載る（IMG_8736, 8737, 8782で明瞭に確認可能）
+        //    特徴③：笠木（かさぎ）は重厚な五角形断面（山形勾配の上面）を持ち、両端の木口が斜め（内傾き台形）にカットされている
+        //    特徴④：太い総檜の円柱はわずかなテーパーを持ち、根元が地面の湿気で濃褐色〜黒緑色に落ち着いている
+        const toriiGroup = new THREE.Group();
+        toriiGroup.position.set(toriiX, BASE_Y + 0.08, 0);
+
+        const colSpan = 7.40; // 左右の柱の中心間隔
+        const colH = 8.85;    // 柱の高さ
+        const colTopR = 0.41; // 柱上端の半径
+        const colBotR = 0.48; // 柱下端の半径
+
+        [-colSpan / 2, colSpan / 2].forEach(tz => {
+          // 檜の丸柱本体（直立〜ごくわずかなテーパー：IMG_8736, 8737, 8782）
+          const tColGeo = new THREE.CylinderGeometry(colTopR, colBotR, colH, 40);
+          const tCol = new THREE.Mesh(tColGeo, materials.hinokiColumn);
+          tCol.position.set(0, colH / 2 - 0.08, tz);
+          tCol.castShadow = true;
+          tCol.receiveShadow = true;
+          toriiGroup.add(tCol);
+
+          // 写真 IMG_8736, 8738, 8777, 8782 で見られる柱の根元（地面際約80cm）の湿気・古色による濃い風化帯
+          const baseWeatherGeo = new THREE.CylinderGeometry(colBotR * 0.992, colBotR * 1.004, 0.85, 40);
+          const baseWeatherMat = new THREE.MeshStandardMaterial({
+            map: hinoki.colorTex,
+            bumpMap: hinoki.bumpTex,
+            bumpScale: 0.02,
+            color: 0x42382c,
+            roughness: 0.42
+          });
+          const baseWeather = new THREE.Mesh(baseWeatherGeo, baseWeatherMat);
+          baseWeather.position.set(0, 0.34, tz);
+          toriiGroup.add(baseWeather);
+        });
+
+        // 【伊勢神宮独自の笠木（かさぎ）】
+        // 断面が「五角形（下部が垂直、上部が緩やかな山形屋根勾配）」で、かつ長手方向の両端木口が斜め（上辺が長く下辺が短い台形）に切り落とされた形状（IMG_8736, 8737, 8782）
+        const kasagiTopHalfLen = 5.75; // 上端の半長（全長 11.50m）
+        const kasagiBotHalfLen = 5.56; // 下端の半長（全長 11.12m → 木口が斜めにカットされている）
+        const kasagiH = 0.72;          // 笠木の総高さ
+        const kasagiWallH = 0.50;      // 垂直側面の高さ
+        const kasagiHalfThick = 0.33;  // 笠木の厚み半径（幅 0.66m）
+
+        // 長手方向（Z軸）× 高さ（Y軸）の台形プロファイルを作成し、厚み方向（X軸）へ押し出した上で上面を五角形山形に成形
+        const kasagiGroup = new THREE.Group();
+        kasagiGroup.position.set(0, colH - 0.12, 0);
+
+        // 下段〜中段の台形本体（両端の木口が斜めにカットされた直方体部）
+        const lowerShape = new THREE.Shape();
+        lowerShape.moveTo(-kasagiBotHalfLen, 0);
+        lowerShape.lineTo(kasagiBotHalfLen, 0);
+        lowerShape.lineTo(kasagiTopHalfLen, kasagiWallH);
+        lowerShape.lineTo(-kasagiTopHalfLen, kasagiWallH);
+        lowerShape.closePath();
+
+        const lowerExtrudeGeo = new THREE.ExtrudeGeometry(lowerShape, {
+          depth: kasagiHalfThick * 2,
+          bevelEnabled: false
+        });
+        // ExtrudeGeometry は XY平面で作られ Z方向に押し出されるため、Y軸を90度回転して橋門の横方向（Z軸）に合わせる
+        lowerExtrudeGeo.rotateY(Math.PI / 2);
+        lowerExtrudeGeo.translate(-kasagiHalfThick, 0, 0);
+        const kasagiBody = new THREE.Mesh(lowerExtrudeGeo, materials.hinokiColumn);
+        kasagiBody.castShadow = true;
+        kasagiBody.receiveShadow = true;
+        kasagiGroup.add(kasagiBody);
+
+        // 上部の山形勾配屋根（五角形断面の上部三角形＆銅板水切りカバー：IMG_8736, 8737, 8782）
+        [-1, 1].forEach(sideX => {
+          const roofSlopeGeo = new THREE.BoxGeometry(kasagiHalfThick * 1.08, 0.12, kasagiTopHalfLen * 2 + 0.04);
+          const roofSlope = new THREE.Mesh(roofSlopeGeo, materials.hinokiColumn);
+          roofSlope.position.set(sideX * (kasagiHalfThick * 0.48), kasagiWallH + 0.08, 0);
+          roofSlope.rotation.z = -sideX * 0.34;
+          roofSlope.castShadow = true;
+          kasagiGroup.add(roofSlope);
+
+          // 最上部の薄い銅板水切り（黒緑青色）
+          const copperSlopeGeo = new THREE.BoxGeometry(kasagiHalfThick * 1.12, 0.035, kasagiTopHalfLen * 2 + 0.08);
+          const copperSlope = new THREE.Mesh(copperSlopeGeo, materials.blackIronHardware);
+          copperSlope.position.set(sideX * (kasagiHalfThick * 0.48), kasagiWallH + 0.13, 0);
+          copperSlope.rotation.z = -sideX * 0.34;
+          kasagiGroup.add(copperSlope);
+        });
+
+        toriiGroup.add(kasagiGroup);
+
+        // 【伊勢神宮独自の貫（ぬき）と楔（くさび）】
+        // 写真 IMG_8736, 8737, 8782 の通り、貫は左右の柱の「内側」の間だけを結んでおり、柱の外側へは一切飛び出さない！
+        const nukiSpanLen = colSpan - colTopR * 1.2; // 柱の中心まで貫入し、外側には絶対に出ない長さ
+        const nukiHeight = 0.56;
+        const nukiThick = 0.28;
+        const nukiCenterY = colH - 1.72;
+
+        const nukiGeo = new THREE.BoxGeometry(nukiThick, nukiHeight, nukiSpanLen);
+        const nuki = new THREE.Mesh(nukiGeo, materials.hinokiColumn);
+        nuki.position.set(0, nukiCenterY, 0);
+        nuki.castShadow = true;
+        nuki.receiveShadow = true;
+        toriiGroup.add(nuki);
+
+        // 貫の上面・左右の柱の内側面にピタリと接して打ち込まれた「直角台形の楔（くさび）」（IMG_8736, 8737, 8782で貫の上・柱の内脇に三角形に見える部材）
+        [-1, 1].forEach(sideZ => {
+          const innerColumnFaceZ = sideZ * (colSpan / 2 - colTopR * 0.88);
+          const wedgeW = 0.38; // 柱から内側へ張り出す幅
+          const wedgeH = 0.22; // 貫の上面から立ち上がる高さ
+
+          const wedgeShape = new THREE.Shape();
+          if (sideZ > 0) {
+            // 右柱の内側（-Z方向へ低くなる台形楔）
+            wedgeShape.moveTo(0, 0);
+            wedgeShape.lineTo(-wedgeW, 0);
+            wedgeShape.lineTo(-wedgeW, wedgeH * 0.32);
+            wedgeShape.lineTo(0, wedgeH);
+          } else {
+            // 左柱の内側（+Z方向へ低くなる台形楔）
+            wedgeShape.moveTo(0, 0);
+            wedgeShape.lineTo(wedgeW, 0);
+            wedgeShape.lineTo(wedgeW, wedgeH * 0.32);
+            wedgeShape.lineTo(0, wedgeH);
+          }
+          wedgeShape.closePath();
+
+          const wedgeGeo = new THREE.ExtrudeGeometry(wedgeShape, {
+            depth: nukiThick * 1.04,
+            bevelEnabled: false
+          });
+          wedgeGeo.rotateY(Math.PI / 2);
+          wedgeGeo.translate(-nukiThick * 0.52, nukiCenterY + nukiHeight / 2, innerColumnFaceZ);
+
+          const wedgeMesh = new THREE.Mesh(wedgeGeo, materials.hinokiColumn);
+          wedgeMesh.castShadow = true;
+          toriiGroup.add(wedgeMesh);
+        });
+
+        bridgeMasterGroup.add(toriiGroup);
+      });
+    }
+    buildAbutmentsApproachesAndTorii();
+
+    // ==========================================
+    // 12. 五十鈴川の河川土木構造（IMG_8746〜8750, 8761, 8762, 8767〜8770）：
+    //     両岸の石張り護岸法面・右岸の玉石張り突堤（水制）・下流側の洗い堰（白波が立つ落差工）と水面
+    // ==========================================
+    let riverMesh, riverGeo, weirFoamMesh;
+    const riverVertices = [];
+
+    function buildIsuzuRiverAndRevetments() {
+      // 1) 両岸（東岸・西岸）の石張り護岸スロープと犬走り広場（IMG_8746〜8750, 8761, 8762）
+      [-1, 1].forEach(bankSign => {
+        // 橋脚第1・第2列が立つ乱張り石畳の緩斜面（IMG_8746, 8749, 8750）
+        const pavedSlopeGeo = new THREE.BoxGeometry(20, 2.6, 130);
+        const pavedSlope = new THREE.Mesh(pavedSlopeGeo, materials.kikkoMasonry);
+        pavedSlope.position.set(bankSign * 36.5, 0.1, 0);
+        pavedSlope.rotation.z = -bankSign * 0.085;
+        pavedSlope.receiveShadow = true;
+        bridgeMasterGroup.add(pavedSlope);
+
+        // 外側の玉砂利護岸テラス（IMG_8746〜8750の手前の砂利広場）
+        const terraceGeo = new THREE.BoxGeometry(24, 3.0, 130);
+        const terrace = new THREE.Mesh(terraceGeo, materials.gravelGround);
+        terrace.position.set(bankSign * 52.0, 0.85, 0);
+        terrace.receiveShadow = true;
+        bridgeMasterGroup.add(terrace);
+      });
+
+      // 2) 【写真8747, 8748, 8761, 8762, 8770の河川構造ディテール①】
+      //    下流側・東岸から川へ台形に張り出した「玉石張りの突堤（水制工）」
+      const jettyGroup = new THREE.Group();
+      jettyGroup.position.set(24.5, 0.55, -14.0);
+      const jettyGeo = new THREE.BoxGeometry(12.0, 1.2, 16.0);
+      const jetty = new THREE.Mesh(jettyGeo, materials.kikkoMasonry);
+      jetty.receiveShadow = true;
+      jettyGroup.add(jetty);
+      bridgeMasterGroup.add(jettyGroup);
+
+      // 3) 【写真8761, 8762, 8770の河川構造ディテール②】
+      //    下流側（z = -28m付近）で五十鈴川の川幅いっぱいに横一文字の白波を立てる「洗い堰（落差工）」
+      const weirGeo = new THREE.BoxGeometry(52, 0.9, 2.4);
+      const weir = new THREE.Mesh(weirGeo, materials.kikkoMasonry);
+      weir.position.set(0, 0.05, -28.0);
+      bridgeMasterGroup.add(weir);
+
+      const foamGeo = new THREE.PlaneGeometry(50, 3.6, 32, 4);
+      foamGeo.rotateX(-Math.PI / 2);
+      const foamMat = new THREE.MeshBasicMaterial({
+        color: 0xf8fafc,
+        transparent: true,
+        opacity: 0.72
+      });
+      weirFoamMesh = new THREE.Mesh(foamGeo, foamMat);
+      weirFoamMesh.position.set(0, 0.44, -29.2);
+      bridgeMasterGroup.add(weirFoamMesh);
+
+      // 4) 五十鈴川の河床と水面メッシュ（写真準拠の雨天増水モード ⇔ 晴天清流モード切替対応）
+      const bedGeo = new THREE.PlaneGeometry(60, 150);
+      bedGeo.rotateX(-Math.PI / 2);
+      const bed = new THREE.Mesh(bedGeo, materials.gravelGround);
+      bed.position.y = -1.35;
+      bed.receiveShadow = true;
+      bridgeMasterGroup.add(bed);
+
+      riverGeo = new THREE.PlaneGeometry(54, 150, 56, 80);
+      riverGeo.rotateX(-Math.PI / 2);
+      const pos = riverGeo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        riverVertices.push({
+          x: pos.getX(i),
+          y: pos.getY(i),
+          z: pos.getZ(i)
+        });
+      }
+
+      const riverMat = new THREE.MeshStandardMaterial({
+        color: 0x8c735b, // 写真8747, 8761, 8767の雨天増水時の黄土〜茶褐色の水面色
+        roughness: 0.22,
+        metalness: 0.15,
+        transparent: true,
+        opacity: 0.90
+      });
+      riverMesh = new THREE.Mesh(riverGeo, riverMat);
+      riverMesh.position.y = 0.38;
+      riverMesh.receiveShadow = true;
+      bridgeMasterGroup.add(riverMesh);
+    }
+    buildIsuzuRiverAndRevetments();
+
+    // ==========================================
+    // 13. 建築・土木ディテール解説ピンとカメラ視点プリセット（全47枚対応）
+    // ==========================================
+    const annotations = [
+      {
+        id: 'overview',
+        title: '① 宇治橋・全構造クリア俯瞰',
+        desc: '橋梁周辺の樹木や不要な設置物をすべて排除した全体俯瞰です。全長約101.8m（モデル長92m）の緩やかな木造反り橋、16基の擬宝珠、両端の神明鳥居とL字型の袖高欄、11列の橋脚群とX字筋交い、上流の木除け杭まで一望できます。',
+        pos: new THREE.Vector3(0, BASE_Y + ARCH_RISE + 2.2, 0),
+        camPos: new THREE.Vector3(-38, 20, 52),
+        camTarget: new THREE.Vector3(0, 4.5, 0)
+      },
+      {
+        id: 'substructure',
+        title: '② 下部工：X字筋交い・白塗り貫・切妻小屋根',
+        desc: '【写真10〜15（IMG_8745〜8750）精査】11列の橋脚は4本の太い檜角柱から成り、上下2段の貫（木口が白く保護塗装）の間には橋軸直角方向の「X字筋交い（ブレース）」が組まれています。上部にはV字の方杖と、冠木の木口を雨から守る「切妻小屋根カバー」、根元には緑青銅板の袴金具が備わります。',
+        pos: new THREE.Vector3(24.0, 3.2, 4.2),
+        camPos: new THREE.Vector3(34.5, 2.7, 13.5),
+        camTarget: new THREE.Vector3(18.0, 3.1, 0.5)
+      },
+      {
+        id: 'deck_center',
+        title: '③ 橋面：中央縁木・千鳥切石・張り出し敷板',
+        desc: '【写真17〜25, 31（IMG_8752〜8766）精査】橋面の中央には右側通行を区分する台形断面の木製「中央縁木」が縦断し、両端は斜めに削ぎ落とされて黒鉄金具で固定されています。床板（敷板）には檜の節や年輪が浮かび、高欄の外側へ約57cm張り出して2列の黒釘が打たれています。',
+        pos: new THREE.Vector3(38.0, getBridgeY(38.0) + 0.5, 0),
+        camPos: new THREE.Vector3(48.2, 6.1, -0.6),
+        camTarget: new THREE.Vector3(22.0, 6.2, 0.0)
+      },
+      {
+        id: 'railing_joint',
+        title: '④ 高欄詳細：くり形束柱・4本角釘継手・唄金具',
+        desc: '【写真22, 23, 34（IMG_8757〜8758, 8769）精査】高欄の束柱は首元が優美にくびれた「くり形（斗きょう風）」に加工され、丸い架木の継手上部には「4本の黒い角釘が突き出た黒鉄プレート」が載っています。中段の平桁には中央に突起のあるドーム状の「唄金具（丸鋲）」と4点鋲留めの黒鉄縦帯が打たれています。',
+        pos: new THREE.Vector3(10.3, getBridgeY(10.3) + 1.3, 3.65),
+        camPos: new THREE.Vector3(10.3, getBridgeY(10.3) + 1.55, 1.65),
+        camTarget: new THREE.Vector3(10.3, getBridgeY(10.3) + 0.95, 3.85)
+      },
+      {
+        id: 'giboshi_closeup',
+        title: '⑤ 擬宝珠接写：「御裳濯川 御橋」陰刻銘と猪目金具',
+        desc: '【写真23, 30, 40, 41（IMG_8758, 8765, 8775, 8776）精査】擬宝珠は胴部に2本1組×3段（計6本）の横筋リングと裾の12個の丸鋲を持ち、上段には「御裳濯川 御橋」の銘が刻まれています。参拝者に撫でられる下半分は赤銅ブロンズ色に輝き、親柱上端の緑青銅リングと側面の猪目金具が引き締めます。',
+        pos: new THREE.Vector3(-46.0, BASE_Y + 2.1, -3.65),
+        camPos: new THREE.Vector3(-44.4, BASE_Y + 2.15, -2.25),
+        camTarget: new THREE.Vector3(-46.0, BASE_Y + 1.95, -3.65)
+      },
+      {
+        id: 'kiyokegui',
+        title: '⑥ 上流側：Aフレーム木除け杭と下流洗い堰',
+        desc: '【写真26, 27, 32, 33（IMG_8761〜8762, 8767〜8768）精査】上流側には、頂部に切妻の小屋根を載せた主杭と、前面が白く保護された斜め控え杭・水平貫から成る「Aフレーム構造の木除け杭」が7基並び、流木から橋脚を守ります。下流側には川幅いっぱいに白波が立つ「洗い堰」と玉石張りの突堤が設けられています。',
+        pos: new THREE.Vector3(0, 3.8, 9.2),
+        camPos: new THREE.Vector3(-4.5, 9.2, 2.2),
+        camTarget: new THREE.Vector3(0.0, 1.8, 10.5)
+      },
+      {
+        id: 'abutment',
+        title: '⑦ 橋詰：2段亀甲積み橋台・袖高欄・神明鳥居',
+        desc: '【写真1〜8, 42〜47（IMG_8736〜8743, 8777〜8782）精査】両端の橋詰は、多角形の石を精緻に組んだ2段の「亀甲積み石垣」で支えられ、高欄が外側へL字に開く「袖高欄」と黒い縦格子柵が備わります。床面は千鳥目地の御影石切石から洗い出し舗装、白い見切り石、そして神明鳥居の玉砂利へと連なります。',
+        pos: new THREE.Vector3(46.0, BASE_Y + 1.2, 5.5),
+        camPos: new THREE.Vector3(58.5, 6.4, 4.2),
+        camTarget: new THREE.Vector3(42.0, 5.2, 0.0)
+      }
+    ];
+
+    const labelsContainer = document.getElementById('labels-container');
+    const detailTitle = document.getElementById('detail-title');
+    const detailDesc = document.getElementById('detail-desc');
+    const markerElements = [];
+
+    annotations.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'annotation-marker glass-panel px-2.5 py-1 rounded-full text-xs font-sans-ui font-semibold text-amber-200 border border-amber-400/70 shadow-lg flex items-center gap-1.5 hover:bg-amber-600 hover:text-white';
+      el.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span><span>${item.title.split('：')[0]}</span>`;
+      el.addEventListener('click', () => activateAnnotation(item));
+      labelsContainer.appendChild(el);
+      markerElements.push({ data: item, element: el });
+    });
+
+    // カメラアニメーションとウォークスルー制御
+    const camAnim = {
+      active: false,
+      walkthrough: false,
+      walkT: 0,
+      startPos: new THREE.Vector3(),
+      endPos: new THREE.Vector3(),
+      startTarget: new THREE.Vector3(),
+      endTarget: new THREE.Vector3(),
+      progress: 0
+    };
+
+    function moveCameraTo(pos, target) {
+      camAnim.walkthrough = false;
+      camAnim.active = true;
+      camAnim.progress = 0;
+      camAnim.startPos.copy(camera.position);
+      camAnim.endPos.copy(pos);
+      camAnim.startTarget.copy(controls.target);
+      camAnim.endTarget.copy(target);
+    }
+
+    function activateAnnotation(item) {
+      detailTitle.textContent = item.title;
+      detailDesc.textContent = item.desc;
+      moveCameraTo(item.camPos, item.camTarget);
+
+      document.querySelectorAll('.cam-btn').forEach(btn => {
+        if (btn.getAttribute('data-cam') === item.id) {
+          btn.className = 'cam-btn px-3 py-1.5 rounded-xl bg-amber-600/90 hover:bg-amber-500 text-white font-medium transition shadow text-left flex items-center justify-between';
+        } else {
+          btn.className = 'cam-btn px-3 py-1.5 rounded-xl bg-slate-800/85 hover:bg-slate-700 text-slate-200 border border-slate-600/60 transition text-left flex items-center justify-between';
+        }
+      });
+    }
+
+    controls.addEventListener('start', () => {
+      camAnim.active = false;
+      camAnim.walkthrough = false;
+    });
+
+    document.querySelectorAll('.cam-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-cam');
+        const found = annotations.find(a => a.id === key);
+        if (found) activateAnnotation(found);
+      });
+    });
+
+    // 橋面ウォークスルー（写真1枚目の東詰鳥居から写真47枚目の西詰鳥居まで右側通行で渡る）
+    const btnWalkthrough = document.getElementById('btn-walkthrough');
+    btnWalkthrough.addEventListener('click', () => {
+      camAnim.active = false;
+      camAnim.walkthrough = !camAnim.walkthrough;
+      if (camAnim.walkthrough) {
+        camAnim.walkT = 0;
+        detailTitle.textContent = '🚶 橋面ウォークスルー再生中（東詰 → 西詰）';
+        detailDesc.textContent = '写真1枚目（内宮側の大鳥居）から千鳥目地の切石舗装・右側通行立札を通り、中央縁木の右側を歩いて写真47枚目（西詰の大鳥居）まで渡る一人称視点です。画面をドラッグすると任意の位置で停止できます。';
+        btnWalkthrough.textContent = '⏹️ ウォークスルー停止';
+      } else {
+        btnWalkthrough.textContent = '🚶 橋面ウォークスルー再生';
+      }
+    });
+
+    // ==========================================
+    // 14. 質感・河川コンディション切り替え（湿潤・増水モード ⇔ 乾燥・清流モード）
+    // ==========================================
+    const btnWet = document.getElementById('btn-mode-wet');
+    const btnDry = document.getElementById('btn-mode-dry');
+
+    function setSurfaceCondition(isWet) {
+      if (isWet) {
+        // 写真準拠：雨上がりの湿潤ツヤ木肌＆増水した五十鈴川（明るい視認性を維持）
+        materials.hinokiColumn.color.setHex(0x9c7454);
+        materials.hinokiColumn.roughness = 0.32;
+        materials.hinokiRailing.color.setHex(0xa67e5e);
+        materials.hinokiRailing.roughness = 0.34;
+        materials.hinokiDeck.color.setHex(0xb88e6c);
+        materials.hinokiDeck.roughness = 0.22;
+        materials.graniteStaggeredPaving.roughness = 0.26;
+        riverMesh.material.color.setHex(0x8c735b);
+        riverMesh.material.opacity = 0.90;
+        weirFoamMesh.visible = true;
+        kiyokeWakeCircles.forEach(w => { w.visible = true; });
+
+        btnWet.className = 'px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold transition shadow flex items-center justify-center gap-1.5';
+        btnDry.className = 'px-3 py-2 rounded-xl bg-slate-800/85 hover:bg-slate-700 text-slate-200 border border-slate-600/60 transition flex items-center justify-center gap-1.5';
+      } else {
+        // 乾燥した白木〜明るい檜肌＆透き通る五十鈴川の清流
+        materials.hinokiColumn.color.setHex(0xc29874);
+        materials.hinokiColumn.roughness = 0.58;
+        materials.hinokiRailing.color.setHex(0xcc9f78);
+        materials.hinokiRailing.roughness = 0.58;
+        materials.hinokiDeck.color.setHex(0xd6ad86);
+        materials.hinokiDeck.roughness = 0.55;
+        materials.graniteStaggeredPaving.roughness = 0.65;
+        riverMesh.material.color.setHex(0x3b7a75);
+        riverMesh.material.opacity = 0.72;
+        weirFoamMesh.visible = false;
+        kiyokeWakeCircles.forEach(w => { w.visible = false; });
+
+        btnDry.className = 'px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold transition shadow flex items-center justify-center gap-1.5';
+        btnWet.className = 'px-3 py-2 rounded-xl bg-slate-800/85 hover:bg-slate-700 text-slate-200 border border-slate-600/60 transition flex items-center justify-center gap-1.5';
+      }
+    }
+
+    btnWet.addEventListener('click', () => setSurfaceCondition(true));
+    btnDry.addEventListener('click', () => setSurfaceCondition(false));
+
+    // ラベル表示切り替え・モバイルパネル開閉
+    const toggleLabels = document.getElementById('toggle-labels');
+    toggleLabels.addEventListener('change', (e) => {
+      labelsContainer.style.display = e.target.checked ? 'block' : 'none';
+    });
+
+    const toggleUiBtn = document.getElementById('toggle-ui-btn');
+    const controlPanel = document.getElementById('control-panel');
+    let panelOpen = true;
+    toggleUiBtn.addEventListener('click', () => {
+      panelOpen = !panelOpen;
+      controlPanel.style.display = panelOpen ? 'flex' : 'none';
+    });
+
+    // ==========================================
+    // 15. リサイズ＆アニメーションループ
+    // ==========================================
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    const clock = new THREE.Clock();
+    const projVec = new THREE.Vector3();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const elapsed = clock.getElapsedTime();
+
+      // カメラプリセット補間移動
+      if (camAnim.active) {
+        camAnim.progress += 0.035;
+        if (camAnim.progress >= 1) {
+          camAnim.progress = 1;
+          camAnim.active = false;
+        }
+        const t = camAnim.progress * camAnim.progress * (3 - 2 * camAnim.progress);
+        camera.position.lerpVectors(camAnim.startPos, camAnim.endPos, t);
+        controls.target.lerpVectors(camAnim.startTarget, camAnim.endTarget, t);
+      }
+
+      // 橋面ウォークスルー自動歩行
+      if (camAnim.walkthrough) {
+        camAnim.walkT += 0.0014;
+        if (camAnim.walkT > 1) camAnim.walkT = 0;
+        const curX = 56.0 - camAnim.walkT * 112.0; // 東詰鳥居(+56) → 西詰鳥居(-56)
+        const lookX = curX - 8.0;
+        const curY = getBridgeY(Math.max(-HALF_LEN, Math.min(HALF_LEN, curX))) + 1.65;
+        const lookY = getBridgeY(Math.max(-HALF_LEN, Math.min(HALF_LEN, lookX))) + 1.55;
+        camera.position.set(curX, curY, -1.65); // 右側通行レーン
+        controls.target.set(lookX, lookY, -1.65);
+      }
+
+      controls.update();
+
+      // 五十鈴川の水流波アニメーション（上流 +Z から下流 -Z への流れ）
+      if (riverGeo) {
+        const pos = riverGeo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const v = riverVertices[i];
+          const wave = Math.sin(v.z * 0.45 + elapsed * 3.2) * 0.055 + Math.cos(v.x * 0.35 - elapsed * 2.0) * 0.035;
+          pos.setY(i, v.y + wave);
+        }
+        pos.needsUpdate = true;
+      }
+
+      // 3D解説ピンのスクリーン座標更新
+      if (toggleLabels.checked) {
+        markerElements.forEach(({ data, element }) => {
+          projVec.copy(data.pos);
+          projVec.project(camera);
+          if (projVec.z > 1) {
+            element.style.opacity = '0';
+            element.style.pointerEvents = 'none';
+          } else {
+            const x = (projVec.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-(projVec.y * 0.5) + 0.5) * window.innerHeight;
+            element.style.left = `${x}px`;
+            element.style.top = `${y}px`;
+            element.style.opacity = '1';
+            element.style.pointerEvents = 'auto';
+          }
+        });
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>

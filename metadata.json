@@ -1,0 +1,6 @@
+{
+  "name": "伊勢神宮 宇治橋 3D建築構造ビューア",
+  "description": "伊勢神宮・宇治橋の木造反り橋・高欄・擬宝珠・下部工X字筋交い・木除け杭を精緻に3D再現した高精細建築ディテールビューア",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
