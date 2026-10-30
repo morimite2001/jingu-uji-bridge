@@ -235,16 +235,28 @@ export default function App() {
     bridgeModelRef.current = bridgeModel;
     scene.add(bridgeModel.rootGroup);
 
-    // Resize Handler
+    // Resize & Orientation Handler for Mobile & Desktop
     const handleResize = () => {
       if (!container || !renderer || !camera) return;
       const width = container.clientWidth;
       const height = container.clientHeight;
-      camera.aspect = width / height;
+      const aspect = width / height;
+      camera.aspect = aspect;
+
+      // In portrait orientation on mobile devices, expand vertical FOV so the 92m bridge fits horizontally
+      if (aspect < 1.0) {
+        camera.fov = Math.min(64, 42 / Math.max(0.68, aspect));
+      } else {
+        camera.fov = 42;
+      }
+
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
     };
+
+    handleResize(); // Trigger immediately after scene construction
     window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
 
     // Keyboard shortcut for walkthrough toggle
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -342,6 +354,7 @@ export default function App() {
       cancelAnimationFrame(animationFrameId);
       clearTimeout(animationFrameId);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
       window.removeEventListener('keydown', handleKeyDown);
       renderer.dispose();
       if (container.contains(renderer.domElement)) {
@@ -351,7 +364,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-slate-950 font-serif select-none">
+    <div className="relative w-screen h-[100dvh] overflow-hidden bg-slate-950 font-serif select-none">
       {/* 3D WebGL Canvas Container */}
       <div
         ref={mountRef}
@@ -376,11 +389,11 @@ export default function App() {
                   top: `${pin.y}px`,
                   transform: 'translate(-50%, -50%)',
                 }}
-                className="absolute pointer-events-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full glass-panel bg-slate-900/90 hover:bg-amber-600 text-amber-200 hover:text-white border border-amber-400/70 shadow-lg text-xs font-sans-ui font-semibold transition hover:scale-110 active:scale-95"
+                className="absolute pointer-events-auto flex items-center gap-1 md:gap-1.5 px-2 py-0.5 md:px-2.5 md:py-1 rounded-full glass-panel bg-slate-900/90 hover:bg-amber-600 text-amber-200 hover:text-white border border-amber-400/70 shadow-lg text-[10px] md:text-xs font-sans-ui font-semibold transition hover:scale-110 active:scale-95"
                 title={`${pin.label}へカメラ移動`}
                 aria-label={pin.label}
               >
-                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-amber-400"></span>
                 <span>{pin.label}</span>
               </button>
             );
